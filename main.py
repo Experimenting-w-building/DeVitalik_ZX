@@ -1,12 +1,10 @@
 import asyncio
 import logging
-from dotenv import load_dotenv
 from src.logging_config import setup_logging
 from src.cli import ZerePyCLI
 
-# Initialize logging and load env vars once at startup
+# Initialize logging
 setup_logging()
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 

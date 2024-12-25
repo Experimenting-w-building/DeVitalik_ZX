@@ -5,8 +5,8 @@ import random
 import os
 
 class VisualizationService:
-    def __init__(self):
-        self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+    def __init__(self, openai_client):
+        self.client = openai_client
         self.logger = logging.getLogger(__name__)
         
         # Base prompts for different visualization types

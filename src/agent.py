@@ -21,6 +21,8 @@ REQUIRED_FIELDS = ["name", "bio", "traits", "examples", "loop_delay", "config", 
 
 logger = logging.getLogger("agent")
 
+load_dotenv()  # Load environment variables
+
 class ZerePyAgent:
     def __init__(
             self,
@@ -136,6 +138,15 @@ class ZerePyAgent:
             except Exception as e:
                 self.logger.error(f"Error in agent loop: {e}")
                 await asyncio.sleep(300)  # Wait 5 minutes on error
+
+    async def loop(self):
+        """Main agent loop"""
+        try:
+            while True:
+                await self.run_loop()
+                await asyncio.sleep(self.loop_delay)
+        except Exception as e:
+            self.logger.error(f"Error in agent loop: {e}")
 
 class DeVitalik:
     def __init__(self):

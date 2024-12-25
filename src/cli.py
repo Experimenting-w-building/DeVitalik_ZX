@@ -389,7 +389,7 @@ class ZerePyCLI:
             return
 
         try:
-            asyncio.run(self.agent.loop())
+            self.agent.loop()
         except KeyboardInterrupt:
             logger.info("\n🛑 Agent loop stopped by user.")
         except Exception as e:

@@ -140,8 +140,8 @@ class ConnectionManager:
             return None
 
     def get_model_providers(self) -> List[str]:
-        """Get a list of all LLM provider connections"""
+        """Get list of configured LLM providers"""
         return [
-            name for name, conn in self.connections.items() 
-            if conn.is_configured() and getattr(conn, 'is_llm_provider', lambda: False)
+            name for name, conn in self.connections.items()
+            if conn.is_llm_provider and conn.is_configured()
         ]

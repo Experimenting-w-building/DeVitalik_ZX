@@ -141,12 +141,10 @@ class TwitterConnection(BaseConnection):
             ))
         return tweets
         
-    async def _load_credentials(self) -> Dict[str, str]:
+    async def _load_credentials(self) -> str:
         """Load Twitter credentials from environment"""
-        from dotenv import load_dotenv
         import os
         
-        load_dotenv()
         required_vars = {
             'TWITTER_CONSUMER_KEY': 'consumer key',
             'TWITTER_CONSUMER_SECRET': 'consumer secret',

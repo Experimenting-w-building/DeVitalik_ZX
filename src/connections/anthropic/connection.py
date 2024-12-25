@@ -145,10 +145,8 @@ class AnthropicConnection(BaseConnection):
         
     async def _load_credentials(self) -> str:
         """Load Anthropic credentials from environment"""
-        from dotenv import load_dotenv
         import os
         
-        load_dotenv()
         api_key = os.getenv('ANTHROPIC_API_KEY')
         
         if not api_key:

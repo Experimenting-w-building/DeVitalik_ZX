@@ -12,10 +12,6 @@ from prompt_toolkit.history import FileHistory
 from src.agent import ZerePyAgent
 from src.helpers import print_h_bar
 import os
-from dotenv import load_dotenv
-import asyncio
-
-load_dotenv()  # Load environment variables
 
 # Configure logging
 logger = logging.getLogger(__name__)

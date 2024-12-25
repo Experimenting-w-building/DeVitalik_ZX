@@ -20,8 +20,6 @@ REQUIRED_FIELDS = ["name", "bio", "traits", "examples", "loop_delay", "config", 
 
 logger = logging.getLogger("agent")
 
-load_dotenv()  # Load environment variables
-
 try:
     from src.services.context_analyzer import ContextAnalyzer
     from src.exceptions import ServiceError, AgentConfigError

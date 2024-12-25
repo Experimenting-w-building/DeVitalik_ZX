@@ -7,6 +7,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from src.connection_manager import ConnectionManager
 from src.helpers import print_h_bar
+import tweepy
+from src.services.twitter_service import TwitterService
 
 REQUIRED_FIELDS = ["name", "bio", "traits", "examples", "loop_delay", "config", "tasks"]
 
@@ -102,3 +104,14 @@ class ZerePyAgent:
     
     def perform_action(self, connection: str, action: str, **kwargs) -> None:
         return self.connection_manager.perform_action(connection, action, **kwargs)
+
+    async def run_loop(self):
+        try:
+            if not await self.twitter_service.check_credentials():
+                # Attempt to reconnect
+                auth = tweepy.OAuthHandler(os.getenv('TWITTER_API_KEY'), os.getenv('TWITTER_API_SECRET'))
+                auth.set_access_token(os.getenv('TWITTER_ACCESS_TOKEN'), os.getenv('TWITTER_ACCESS_TOKEN_SECRET'))
+                self.api_client = tweepy.API(auth)
+                self.twitter_service = TwitterService(self.api_client)
+        except Exception as e:
+            logger.error(f"Error in run_loop: {e}")

@@ -84,4 +84,13 @@ class TwitterService:
 
         except Exception as e:
             self.logger.error(f"Failed to get context: {e}")
-            return None 
+            return None
+
+    async def check_credentials(self) -> bool:
+        """Verify Twitter credentials are still valid"""
+        try:
+            self.client.verify_credentials()
+            return True
+        except Exception as e:
+            self.logger.error(f"Twitter credentials failed: {e}")
+            return False 

@@ -6,7 +6,6 @@ from datetime import datetime
 import openai
 from openai import AsyncOpenAI
 from src.connections.base import BaseConnection, ConnectionConfig, ConnectionState
-from base64 import b64decode
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -39,7 +38,7 @@ class ChatResponse(BaseModel):
 
 class ImageGenerationResponse(BaseModel):
     """Response from image generation"""
-    image_path: Path
+    image_url: str
     prompt: str
     revised_prompt: Optional[str] = None
     
@@ -154,22 +153,19 @@ class OpenAIConnection(BaseConnection):
         if not api_key:
             raise ValueError("Missing OpenAI API key")
             
-        return api_key 
+        return api_key
 
     async def generate_image(self, 
-                           prompt: str,
-                           save: bool = True) -> ImageGenerationResponse:
+                           prompt: str) -> ImageGenerationResponse:
         """Generate image using DALL-E"""
         return await self._execute_with_retry(
             "generate_image",
             self._generate_image_impl,
-            prompt,
-            save
+            prompt
         )
         
     async def _generate_image_impl(self,
-                                 prompt: str,
-                                 save: bool) -> ImageGenerationResponse:
+                                 prompt: str) -> ImageGenerationResponse:
         """Implementation of image generation"""
         await self._manage_rate_limit()
         
@@ -181,43 +177,15 @@ class OpenAIConnection(BaseConnection):
                 quality=self.config.image_quality,
                 style=self.config.image_style,
                 n=1,
-                response_format="b64_json"
+                response_format="url"
             )
             
-            revised_prompt = response.data[0].revised_prompt
-            image_data = b64decode(response.data[0].b64_json)
-            
-            if save:
-                # Create save directory if it doesn't exist
-                save_dir = Path(self.config.save_dir)
-                save_dir.mkdir(exist_ok=True)
-                
-                # Generate unique filename based on timestamp
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                image_path = save_dir / f"quantum_vision_{timestamp}.png"
-                
-                # Save the image
-                with open(image_path, "wb") as f:
-                    f.write(image_data)
-                
-                return ImageGenerationResponse(
-                    image_path=image_path,
-                    prompt=prompt,
-                    revised_prompt=revised_prompt
-                )
-            else:
-                # Return in-memory image data if not saving
-                return ImageGenerationResponse(
-                    image_data=image_data,
-                    prompt=prompt,
-                    revised_prompt=revised_prompt
-                )
+            return ImageGenerationResponse(
+                image_url=response.data[0].url,
+                prompt=prompt,
+                revised_prompt=response.data[0].revised_prompt
+            )
                 
         except Exception as e:
             logger.error(f"Image generation failed: {e}")
-            raise
-
-    async def _ensure_save_directory(self) -> None:
-        """Ensure the image save directory exists"""
-        save_dir = Path(self.config.save_dir)
-        save_dir.mkdir(parents=True, exist_ok=True) 
+            raise 

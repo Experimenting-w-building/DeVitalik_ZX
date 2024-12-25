@@ -183,8 +183,8 @@ class ZerePyAgent:
                               "quantum data streams flowing through multiple dimensions")
                 image_response = await openai.generate_image(image_prompt)
                 
-                # Post tweet with image
-                await twitter.post_tweet_with_media(tweet_text, image_response.image_path)
+                # Post tweet with image URL
+                await twitter.post_tweet_with_media(tweet_text, image_response.image_url)
             else:
                 # Post text-only tweet
                 await twitter.post_tweet(tweet_text)

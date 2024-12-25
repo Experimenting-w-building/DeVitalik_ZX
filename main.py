@@ -3,6 +3,9 @@ from pathlib import Path
 import json
 import logging
 from datetime import datetime
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 # Set up logging configuration
 logging.basicConfig(

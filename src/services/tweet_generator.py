@@ -1,12 +1,11 @@
-from typing import Dict, Optional
 from openai import OpenAI
-import random
 import logging
+from typing import Dict
 from src.services.context_analyzer import ContextAnalyzer
 
 class TweetGenerator:
-    def __init__(self):
-        self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+    def __init__(self, openai_api_key: str):
+        self.client = OpenAI(api_key=openai_api_key)
         self.logger = logging.getLogger(__name__)
         self.context_analyzer = ContextAnalyzer()
 

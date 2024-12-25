@@ -52,25 +52,20 @@ class VisualizationService:
             return None
 
     def _build_prompt(self, context: str, context_type: str) -> str:
-        """Build detailed prompt for image generation"""
-        # Get base prompt for context type
-        base = self.base_prompts.get(
-            context_type, 
-            self.base_prompts['quantum_data']
-        )
-        
-        # Add random style modifiers
-        modifiers = random.sample(self.style_modifiers, k=2)
-        
-        # Build full prompt
-        prompt = f"{base}, {context}, featuring {' and '.join(modifiers)}, "
-        prompt += "highly detailed technological art, abstract visualization, "
-        prompt += "no text, quantum aesthetic, vibrant energy patterns"
-        
-        # Add negative prompt to avoid unwanted elements
-        prompt += " --negative text, symbols, human figures, concrete objects"
-        
-        return prompt
+        """Build a prompt for image generation"""
+        try:
+            base = self.base_prompts.get(context_type, self.base_prompts['quantum_data'])
+            modifiers = random.sample(self.style_modifiers, k=2)
+            
+            prompt = f"{base}, {context}. "
+            prompt += f"Featuring {', '.join(modifiers)}. "
+            prompt += "Highly detailed, technological, abstract, no text or symbols"
+            
+            return prompt
+            
+        except Exception as e:
+            self.logger.error(f"Error building prompt: {e}")
+            return self.base_prompts['quantum_data']  # Fallback to basic prompt
 
     def get_caption(self, context_type: str) -> str:
         """Get appropriate caption for the visualization"""

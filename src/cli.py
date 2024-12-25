@@ -382,16 +382,16 @@ class ZerePyCLI:
         except Exception as e:
             logger.error(f"Error running action: {e}")
 
-    def agent_loop(self, input_list: List[str]) -> None:
+    async def agent_loop(self, input_list: List[str]) -> None:
         """Handle agent loop command"""
         if self.agent is None:
-            logger.info("No agent is currently loaded. Use 'load-agent' to load an agent.")
+            logger.info("No agent loaded. Use 'load-agent' first.")
             return
 
         try:
-            self.agent.loop()
+            await self.agent.run_loop()
         except KeyboardInterrupt:
-            logger.info("\n🛑 Agent loop stopped by user.")
+            logger.info("\n🛑 Agent loop stopped by user")
         except Exception as e:
             logger.error(f"Error in agent loop: {e}")
 

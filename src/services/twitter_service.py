@@ -94,3 +94,14 @@ class TwitterService:
         except Exception as e:
             self.logger.error(f"Twitter credentials failed: {e}")
             return False 
+
+    async def reconnect(self):
+        """Attempt to reconnect to Twitter API"""
+        try:
+            auth = tweepy.OAuthHandler(os.getenv('TWITTER_API_KEY'), os.getenv('TWITTER_API_SECRET'))
+            auth.set_access_token(os.getenv('TWITTER_ACCESS_TOKEN'), os.getenv('TWITTER_ACCESS_TOKEN_SECRET'))
+            self.client = tweepy.API(auth)
+            return await self.check_credentials()
+        except Exception as e:
+            self.logger.error(f"Twitter reconnection failed: {e}")
+            return False 

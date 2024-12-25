@@ -1,5 +1,6 @@
 from openai import OpenAI
 import logging
+import random
 from typing import Dict
 from src.services.context_analyzer import ContextAnalyzer
 

@@ -3,8 +3,7 @@ from pydantic import BaseModel, Field
 import logging
 import asyncio
 from datetime import datetime
-import openai
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, OpenAIError
 from src.connections.base import BaseConnection, ConnectionConfig, ConnectionState
 from pathlib import Path
 
@@ -23,7 +22,6 @@ class OpenAIConfig(ConnectionConfig):
     image_size: str = Field(default="1024x1024")
     image_quality: str = Field(default="standard")
     image_style: str = Field(default="vivid")
-    save_dir: str = Field(default="generated_images")
 
 class ChatMessage(BaseModel):
     """Chat message model"""
@@ -81,8 +79,12 @@ class OpenAIConnection(BaseConnection):
     async def health_check(self) -> bool:
         """Verify OpenAI API access"""
         try:
-            models = await self._client.models.list()
-            return bool(models)
+            response = await self._client.chat.completions.create(
+                model=self.config.model,
+                messages=[{"role": "user", "content": "test"}],
+                max_tokens=1
+            )
+            return bool(response)
         except Exception as e:
             logger.error(f"OpenAI health check failed: {e}")
             return False
@@ -129,20 +131,27 @@ class OpenAIConnection(BaseConnection):
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
         
-        response = await self._client.chat.completions.create(
-            model=self.config.model,
-            messages=messages,
-            temperature=self.config.temperature,
-            max_tokens=self.config.max_tokens,
-            frequency_penalty=self.config.frequency_penalty,
-            presence_penalty=self.config.presence_penalty
-        )
-        
-        return ChatResponse(
-            content=response.choices[0].message.content,
-            finish_reason=response.choices[0].finish_reason,
-            usage=response.usage.model_dump()
-        )
+        try:
+            response = await self._client.chat.completions.create(
+                model=self.config.model,
+                messages=messages,
+                temperature=self.config.temperature,
+                max_tokens=self.config.max_tokens,
+                frequency_penalty=self.config.frequency_penalty,
+                presence_penalty=self.config.presence_penalty
+            )
+            
+            return ChatResponse(
+                content=response.choices[0].message.content,
+                finish_reason=response.choices[0].finish_reason,
+                usage=response.usage.model_dump()
+            )
+        except OpenAIError as e:
+            logger.error(f"OpenAI API error: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in text generation: {e}")
+            raise
         
     async def _load_credentials(self) -> str:
         """Load OpenAI credentials from environment"""
@@ -186,6 +195,9 @@ class OpenAIConnection(BaseConnection):
                 revised_prompt=response.data[0].revised_prompt
             )
                 
+        except OpenAIError as e:
+            logger.error(f"OpenAI API error in image generation: {e}")
+            raise
         except Exception as e:
-            logger.error(f"Image generation failed: {e}")
+            logger.error(f"Unexpected error in image generation: {e}")
             raise 

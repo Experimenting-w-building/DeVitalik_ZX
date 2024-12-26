@@ -104,43 +104,21 @@ class ConnectionManager:
         except Exception as e:
             logging.error(f"\nAn error occurred: {e}")
 
-    def perform_action(self, connection_name: str, action_name: str, params: List[Any]) -> Optional[Any]:
-        """Perform an action on a specific connection with given parameters"""
+    def perform_action(self, connection_name: str, action_name: str, params: List[Any] = None) -> Any:
+        """Perform an action using the specified connection"""
+        if connection_name not in self.connections:
+            raise ValueError(f"Unknown connection: {connection_name}")
+            
+        print(f"DEBUG Connection Manager: Performing {action_name} for {connection_name}")
+        print(f"DEBUG Connection Manager: Params type: {type(params)}")
+        print(f"DEBUG Connection Manager: Params content: {params}")
+        
         try:
             connection = self.connections[connection_name]
-            
-            if not connection.is_configured():
-                logging.error(f"\nError: Connection '{connection_name}' is not configured")
-                return None
-                
-            if action_name not in connection.actions:
-                logging.error(f"\nError: Unknown action '{action_name}' for connection '{connection_name}'")
-                return None
-                
-            action = connection.actions[action_name]
-            
-            # Count required parameters
-            required_params_count = sum(1 for param in action.parameters if param.required)
-            
-            # Check if we have enough parameters
-            if len(params) != required_params_count:
-                param_names = [param.name for param in action.parameters if param.required]
-                logging.error(f"\nError: Expected {required_params_count} required parameters for {action_name}: {', '.join(param_names)}")
-                return None
-            
-            # Convert list of params to kwargs dictionary
-            kwargs = {}
-            param_index = 0
-            for param in action.parameters:
-                if param.required:
-                    kwargs[param.name] = params[param_index]
-                    param_index += 1
-            
-            return connection.perform_action(action_name, kwargs)
-            
+            return connection.perform_action(action_name, params)
         except Exception as e:
-            logging.error(f"\nAn error occurred while trying action {action_name} for {connection_name} connection: {e}")
-            return None
+            logger.error(f"An error occurred while trying action {action_name} for {connection_name} connection: {str(e)}")
+            raise
 
     def get_model_providers(self) -> List[str]:
         """Get a list of all LLM provider connections"""

@@ -199,10 +199,20 @@ class OpenAIConnection(BaseConnection):
 
         try:
             if action_name == "generate-text":
-                if not params or len(params) < 1:
-                    raise ValueError("Text prompt is required")
+                # Debug the incoming parameters
+                print(f"DEBUG OpenAI Connection: Received params type: {type(params)}")
+                print(f"DEBUG OpenAI Connection: Params length: {len(params) if params else 0}")
+                
+                if not params:
+                    raise ValueError("No parameters provided")
+                
+                # Extract prompt and system_prompt from params
                 prompt = params[0]
                 system_prompt = params[1] if len(params) > 1 else None
+                
+                print(f"DEBUG OpenAI Connection: Extracted prompt: {prompt[:100]}...")
+                print(f"DEBUG OpenAI Connection: Has system prompt: {system_prompt is not None}")
+                
                 return self.generate_text(prompt, system_prompt)
                 
             elif action_name == "generate-image":
@@ -211,8 +221,8 @@ class OpenAIConnection(BaseConnection):
                 return self.generate_image(params[0])
                 
         except Exception as e:
-            logger.error(f"Error in {action_name}: {str(e)}")
-            raise
+            logger.error(f"Error in {action_name}: {e}")
+            raise Exception(f"Error in {action_name}: {str(e)}")
 
     def generate_image(self, prompt: str) -> str:
         """Generate image using DALL-E"""

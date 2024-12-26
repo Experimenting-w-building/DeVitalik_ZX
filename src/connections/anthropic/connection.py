@@ -1,5 +1,5 @@
 from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field
+from dataclasses import dataclass, field
 import logging
 import asyncio
 from datetime import datetime
@@ -8,25 +8,32 @@ from src.connections.base import BaseConnection, ConnectionConfig, ConnectionSta
 
 logger = logging.getLogger(__name__)
 
+@dataclass
 class AnthropicConfig(ConnectionConfig):
     """Anthropic-specific configuration"""
-    model: str = Field(default="claude-3-sonnet-20240229")
-    max_tokens: int = Field(default=1000, gt=0)
-    temperature: float = Field(default=0.7, ge=0, le=1)
-    top_p: float = Field(default=1.0, ge=0, le=1)
-    rate_limit_rpm: int = Field(default=50, gt=0)  # Conservative default
+    model: str = "claude-2"
+    max_tokens: int = 1000
+    temperature: float = 0.7
+    top_p: float = 1.0
+    rate_limit_rpm: int = 50
 
-class Message(BaseModel):
-    """Message model for Claude"""
-    role: str
-    content: str
+    def __post_init__(self):
+        if self.max_tokens <= 0:
+            raise ValueError("Max tokens must be positive")
+        if not (0 <= self.temperature <= 1):
+            raise ValueError("Temperature must be between 0 and 1")
+        if not (0 <= self.top_p <= 1):
+            raise ValueError("Top P must be between 0 and 1")
+        if self.rate_limit_rpm <= 0:
+            raise ValueError("Rate limit must be positive")
 
-class AnthropicResponse(BaseModel):
-    """Response from Claude"""
+@dataclass
+class AnthropicResponse:
+    """Response from Anthropic API"""
     content: str
     model: str
-    stop_reason: Optional[str]
-    usage: Dict[str, int]
+    stop_reason: Optional[str] = None
+    usage: Dict[str, int] = field(default_factory=dict)
 
 class AnthropicConnection(BaseConnection):
     def __init__(self, config: Dict[str, Any]):
@@ -60,20 +67,19 @@ class AnthropicConnection(BaseConnection):
     async def shutdown(self) -> None:
         """Clean shutdown of Anthropic connection"""
         if self._client:
-            await self._client.aclose()
+            await self._client.close()
         self._client = None
         self.state.is_connected = False
         
     async def health_check(self) -> bool:
         """Verify Anthropic API access"""
         try:
-            # Simple message to verify API access
-            await self._client.messages.create(
+            response = await self._client.messages.create(
                 model=self.config.model,
-                max_tokens=1,
-                messages=[{"role": "user", "content": "test"}]
+                messages=[{"role": "user", "content": "test"}],
+                max_tokens=1
             )
-            return True
+            return bool(response)
         except Exception as e:
             logger.error(f"Anthropic health check failed: {e}")
             return False
@@ -101,7 +107,7 @@ class AnthropicConnection(BaseConnection):
     async def generate_text(self, 
                           prompt: str, 
                           system_prompt: Optional[str] = None) -> AnthropicResponse:
-        """Generate text using Claude"""
+        """Generate text using Anthropic"""
         return await self._execute_with_retry(
             "generate_text",
             self._generate_text_impl,

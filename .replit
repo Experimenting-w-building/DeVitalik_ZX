@@ -7,18 +7,3 @@ PYTHONPATH = "${PYTHONPATH}:${REPL_HOME}"
 
 [nix]
 channel = "stable-22_11"
-
-[packager]
-language = "python3"
-ignoredPackages = ["unit_tests"]
-
-[packager.features]
-packageSearch = true
-guessImports = true
-
-[languages.python3]
-pattern = "**/*.py"
-syntax = "python"
-
-[languages.python3.languageServer]
-start = "pylsp"

@@ -1,5 +1,5 @@
 from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field
+from dataclasses import dataclass, field
 import logging
 import asyncio
 from datetime import datetime
@@ -8,19 +8,35 @@ from src.connections.base import BaseConnection, ConnectionConfig, ConnectionSta
 
 logger = logging.getLogger(__name__)
 
+@dataclass
 class TwitterConfig(ConnectionConfig):
     """Twitter-specific configuration"""
-    timeline_read_count: int = Field(default=10, gt=0)
-    tweet_interval: int = Field(default=900, gt=0)
-    own_tweet_replies_count: int = Field(default=2, ge=0)
+    consumer_key: str = ""
+    consumer_secret: str = ""
+    access_token: str = ""
+    access_token_secret: str = ""
+    timeline_read_count: int = 10
     
-class Tweet(BaseModel):
-    """Tweet data model"""
+    def __post_init__(self):
+        if not self.consumer_key:
+            raise ValueError("Missing consumer key")
+        if not self.consumer_secret:
+            raise ValueError("Missing consumer secret")
+        if not self.access_token:
+            raise ValueError("Missing access token")
+        if not self.access_token_secret:
+            raise ValueError("Missing access token secret")
+        if self.timeline_read_count <= 0:
+            raise ValueError("Timeline read count must be positive")
+
+@dataclass
+class Tweet:
+    """Tweet model"""
     id: str
     text: str
     author_id: str
-    author_username: Optional[str]
-    created_at: Optional[datetime]
+    author_username: Optional[str] = None
+    created_at: Optional[datetime] = None
 
 class TwitterConnection(BaseConnection):
     def __init__(self, config: Dict[str, Any]):
@@ -32,26 +48,26 @@ class TwitterConnection(BaseConnection):
         return TwitterConfig(**config)
         
     async def initialize(self) -> bool:
-        """Initialize Twitter API client"""
+        """Initialize Twitter client"""
         try:
-            credentials = await self._load_credentials()
+            # Initialize Twitter client
             auth = tweepy.OAuthHandler(
-                credentials['TWITTER_CONSUMER_KEY'],
-                credentials['TWITTER_CONSUMER_SECRET']
+                self.config.consumer_key,
+                self.config.consumer_secret
             )
             auth.set_access_token(
-                credentials['TWITTER_ACCESS_TOKEN'],
-                credentials['TWITTER_ACCESS_TOKEN_SECRET']
+                self.config.access_token,
+                self.config.access_token_secret
             )
             
-            # Initialize both v1 and v2 clients
-            self._api = tweepy.API(auth)
             self._client = tweepy.Client(
-                consumer_key=credentials['TWITTER_CONSUMER_KEY'],
-                consumer_secret=credentials['TWITTER_CONSUMER_SECRET'],
-                access_token=credentials['TWITTER_ACCESS_TOKEN'],
-                access_token_secret=credentials['TWITTER_ACCESS_TOKEN_SECRET']
+                consumer_key=self.config.consumer_key,
+                consumer_secret=self.config.consumer_secret,
+                access_token=self.config.access_token,
+                access_token_secret=self.config.access_token_secret
             )
+            
+            self._api = tweepy.API(auth)
             
             # Verify credentials
             await self.health_check()
@@ -72,16 +88,15 @@ class TwitterConnection(BaseConnection):
         self.state.is_connected = False
         
     async def health_check(self) -> bool:
-        """Verify Twitter credentials and API access"""
+        """Verify Twitter API access"""
         try:
-            # Use v1 API to verify credentials
             me = await asyncio.to_thread(self._api.verify_credentials)
             return bool(me)
         except Exception as e:
             logger.error(f"Twitter health check failed: {e}")
             return False
             
-    async def post_tweet(self, text: str) -> Optional[Tweet]:
+    async def post_tweet(self, text: str) -> Tweet:
         """Post a new tweet"""
         return await self._execute_with_retry(
             "post_tweet",
@@ -97,6 +112,41 @@ class TwitterConnection(BaseConnection):
         response = await asyncio.to_thread(
             self._client.create_tweet,
             text=text
+        )
+        
+        tweet_data = response.data
+        return Tweet(
+            id=tweet_data['id'],
+            text=text,
+            author_id=tweet_data['author_id'],
+            created_at=datetime.now()
+        )
+        
+    async def post_tweet_with_media(self, text: str, media_url: str) -> Tweet:
+        """Post a tweet with media"""
+        return await self._execute_with_retry(
+            "post_tweet_with_media",
+            self._post_tweet_with_media_impl,
+            text,
+            media_url
+        )
+        
+    async def _post_tweet_with_media_impl(self, text: str, media_url: str) -> Tweet:
+        """Implementation of media tweet posting"""
+        if len(text) > 280:
+            raise ValueError("Tweet exceeds 280 character limit")
+            
+        # Upload media
+        media = await asyncio.to_thread(
+            self._api.media_upload,
+            media_url
+        )
+        
+        # Post tweet with media
+        response = await asyncio.to_thread(
+            self._client.create_tweet,
+            text=text,
+            media_ids=[media.media_id]
         )
         
         tweet_data = response.data
@@ -141,21 +191,46 @@ class TwitterConnection(BaseConnection):
             ))
         return tweets
         
-    async def _load_credentials(self) -> str:
-        """Load Twitter credentials from environment"""
-        import os
+    async def reply_to_tweet(self, tweet_id: str, text: str) -> Tweet:
+        """Reply to a tweet"""
+        return await self._execute_with_retry(
+            "reply_to_tweet",
+            self._reply_to_tweet_impl,
+            tweet_id,
+            text
+        )
         
-        required_vars = {
-            'TWITTER_CONSUMER_KEY': 'consumer key',
-            'TWITTER_CONSUMER_SECRET': 'consumer secret',
-            'TWITTER_ACCESS_TOKEN': 'access token',
-            'TWITTER_ACCESS_TOKEN_SECRET': 'access token secret'
-        }
-        
-        missing = [desc for var, desc in required_vars.items() 
-                  if not os.getenv(var)]
-        
-        if missing:
-            raise ValueError(f"Missing Twitter credentials: {', '.join(missing)}")
+    async def _reply_to_tweet_impl(self, tweet_id: str, text: str) -> Tweet:
+        """Implementation of tweet reply"""
+        if len(text) > 280:
+            raise ValueError("Reply exceeds 280 character limit")
             
-        return {var: os.getenv(var) for var in required_vars.keys()} 
+        response = await asyncio.to_thread(
+            self._client.create_tweet,
+            text=text,
+            in_reply_to_tweet_id=tweet_id
+        )
+        
+        tweet_data = response.data
+        return Tweet(
+            id=tweet_data['id'],
+            text=text,
+            author_id=tweet_data['author_id'],
+            created_at=datetime.now()
+        )
+        
+    async def like_tweet(self, tweet_id: str) -> bool:
+        """Like a tweet"""
+        return await self._execute_with_retry(
+            "like_tweet",
+            self._like_tweet_impl,
+            tweet_id
+        )
+        
+    async def _like_tweet_impl(self, tweet_id: str) -> bool:
+        """Implementation of tweet liking"""
+        response = await asyncio.to_thread(
+            self._client.like,
+            tweet_id
+        )
+        return bool(response.data) 

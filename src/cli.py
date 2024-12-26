@@ -522,14 +522,29 @@ class ZerePyCLI(Cmd):
     def do_load_agent(self, agent_name: str):
         """Load an agent configuration"""
         try:
+            # Debug output
+            print(f"Loading agent: {agent_name}")
+            
             # Load the agent config
             config_path = os.path.join("agents", f"{agent_name}.json")
+            print(f"Config path: {config_path}")
+            
             with open(config_path, 'r') as f:
                 config = json.load(f)
+                print(f"Loaded config: {config}")
             
-            # Add the name to the config
+            # Create base config if none exists
+            if not isinstance(config, dict):
+                config = {}
+            
+            # Add required fields
             config["name"] = agent_name
-            config["username"] = config.get("username", "DeVitalik")
+            config["username"] = "DeVitalik"
+            config["loop_delay"] = 180
+            config["tweet_interval"] = 3600
+            config["model_provider"] = "openai"
+            
+            print(f"Final config: {config}")
             
             # Create the agent
             self.agent = ZerePyAgent(config)
@@ -537,11 +552,11 @@ class ZerePyCLI(Cmd):
             print(f"✅ Successfully loaded agent: {agent_name}")
             print_h_bar()
             
-        except FileNotFoundError:
-            print(f"Agent config not found: {agent_name}")
-            print_h_bar()
         except Exception as e:
             print(f"Error loading agent: {str(e)}")
+            print(f"Error type: {type(e)}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
             print_h_bar()
 
     ###################

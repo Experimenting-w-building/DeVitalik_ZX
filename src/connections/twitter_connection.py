@@ -375,7 +375,6 @@ class TwitterConnection(BaseConnection):
 
         try:
             if action_name == "read-timeline":
-                # Default to timeline_read_count if no count provided
                 count = params[0] if params and len(params) > 0 else self.timeline_read_count
                 return self.read_timeline(count=count)
                 
@@ -383,6 +382,14 @@ class TwitterConnection(BaseConnection):
                 if not params or len(params) < 1:
                     raise ValueError("Tweet text is required")
                 return self.post_tweet(message=params[0])
+                
+            elif action_name == "reply-to-tweet":
+                if not params or len(params) < 2:
+                    raise ValueError("Tweet ID and reply text are required")
+                return self.post_tweet(
+                    message=params[1],
+                    reply_to=params[0]
+                )
                 
             elif action_name == "post-tweet-with-media":
                 if not params or len(params) < 2:

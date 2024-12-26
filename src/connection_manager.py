@@ -1,62 +1,150 @@
-from typing import Dict, Any, Optional, List
-from dataclasses import dataclass, field
 import logging
-import asyncio
-from src.connections.twitter.connection import TwitterConnection
-from src.connections.openai.connection import OpenAIConnection
-from src.connections.anthropic.connection import AnthropicConnection
-from src.connections.base import BaseConnection
+from typing import Any, List, Optional, Type, Dict
+from src.connections.base_connection import BaseConnection
+from src.connections.anthropic_connection import AnthropicConnection
+from src.connections.eternalai_connection import EternalAIConnection
+from src.connections.openai_connection import OpenAIConnection
+from src.connections.twitter_connection import TwitterConnection
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("connection_manager")
 
-@dataclass
 class ConnectionManager:
-    """Manage all service connections"""
-    connections: Dict[str, BaseConnection] = field(default_factory=dict)
+    def __init__(self, agent_config):
+        self.connections : Dict[str, BaseConnection] = {}
+        for config in agent_config:
+            self._register_connection(config)
     
-    def __init__(self, configs: List[Dict[str, Any]]):
-        self.connections = {}
-        for config in configs:
-            connection_type = config.get("type", "").lower()
-            if connection_type == "twitter":
-                self.connections["twitter"] = TwitterConnection(config)
-            elif connection_type == "openai":
-                self.connections["openai"] = OpenAIConnection(config)
-            elif connection_type == "anthropic":
-                self.connections["anthropic"] = AnthropicConnection(config)
-            else:
-                logger.warning(f"Unknown connection type: {connection_type}")
-    
-    def get_connection(self, name: str) -> Optional[BaseConnection]:
-        """Get a connection by name"""
-        return self.connections.get(name)
-    
-    async def initialize_all(self) -> bool:
-        """Initialize all connections"""
-        success = True
-        for name, connection in self.connections.items():
-            try:
-                if not await connection.initialize():
-                    logger.error(f"Failed to initialize {name} connection")
-                    success = False
-            except Exception as e:
-                logger.error(f"Error initializing {name} connection: {e}")
-                success = False
-        return success
-    
-    async def shutdown_all(self) -> None:
-        """Shutdown all connections"""
-        for name, connection in self.connections.items():
-            try:
-                await connection.shutdown()
-            except Exception as e:
-                logger.error(f"Error shutting down {name} connection: {e}")
-    
-    async def get_llm_provider(self) -> Optional[BaseConnection]:
-        """Get the first available LLM provider"""
-        providers = ["openai", "anthropic"]
-        for provider in providers:
-            connection = self.get_connection(provider)
-            if connection and connection.state.is_connected:
-                return connection
+    @staticmethod
+    def _class_name_to_type(class_name: str) -> Type[BaseConnection]:
+        if class_name == "twitter":
+            return TwitterConnection
+        elif class_name == "anthropic":
+            return AnthropicConnection
+        elif class_name == "openai":
+            return OpenAIConnection
+        elif class_name == "eternalai":
+            return EternalAIConnection
+
         return None
+    
+    def _register_connection(self, config_dic: Dict[str, Any]) -> None:
+        """
+        Create and register a new connection with configuration
+        
+        Args:
+            name: Identifier for the connection
+            connection_class: The connection class to instantiate
+            config: Configuration dictionary for the connection
+        """
+        try:
+            name = config_dic["name"]
+            connection_class = self._class_name_to_type(name)
+            connection = connection_class(config_dic)
+            self.connections[name] = connection
+        except Exception as e:
+            logging.error(f"Failed to initialize connection {name}: {e}")
+
+    def _check_connection(self, connection_string: str)-> bool:
+        try:
+            connection = self.connections[connection_string]
+            return connection.is_configured(verbose=True)
+        except KeyError:
+            logging.error("\nUnknown connection. Try 'list-connections' to see all supported connections.")
+            return False
+        except Exception as e:
+            logging.error(f"\nAn error occurred: {e}")
+            return False
+
+    def configure_connection(self, connection_name: str) -> bool:
+        """Configure a specific connection"""
+        try:
+            connection = self.connections[connection_name]
+            success = connection.configure()
+            
+            if success:
+                logging.info(f"\n✅ SUCCESSFULLY CONFIGURED CONNECTION: {connection_name}")
+            else:
+                logging.error(f"\n❌ ERROR CONFIGURING CONNECTION: {connection_name}")
+            return success
+            
+        except KeyError:
+            logging.error("\nUnknown connection. Try 'list-connections' to see all supported connections.")
+            return False
+        except Exception as e:
+            logging.error(f"\nAn error occurred: {e}")
+            return False
+
+    def list_connections(self) -> None:
+        """List all available connections and their status"""
+        logging.info("\nAVAILABLE CONNECTIONS:")
+        for name, connection in self.connections.items():
+            status = "✅ Configured" if connection.is_configured() else "❌ Not Configured"
+            logging.info(f"- {name}: {status}")
+
+    def list_actions(self, connection_name: str) -> None:
+        """List all available actions for a specific connection"""
+        try:
+            connection = self.connections[connection_name]
+            
+            if connection.is_configured():
+                logging.info(f"\n✅ {connection_name} is configured. You can use any of its actions.")
+            else:
+                logging.info(f"\n❌ {connection_name} is not configured. You must configure a connection to use its actions.")
+            
+            logging.info("\nAVAILABLE ACTIONS:")
+            for action_name, action in connection.actions.items():
+                logging.info(f"- {action_name}: {action.description}")
+                logging.info("  Parameters:")
+                for param in action.parameters:
+                    req = "required" if param.required else "optional"
+                    logging.info(f"    - {param.name} ({req}): {param.description}")
+                
+        except KeyError:
+            logging.error("\nUnknown connection. Try 'list-connections' to see all supported connections.")
+        except Exception as e:
+            logging.error(f"\nAn error occurred: {e}")
+
+    def perform_action(self, connection_name: str, action_name: str, params: List[Any]) -> Optional[Any]:
+        """Perform an action on a specific connection with given parameters"""
+        try:
+            connection = self.connections[connection_name]
+            
+            if not connection.is_configured():
+                logging.error(f"\nError: Connection '{connection_name}' is not configured")
+                return None
+                
+            if action_name not in connection.actions:
+                logging.error(f"\nError: Unknown action '{action_name}' for connection '{connection_name}'")
+                return None
+                
+            action = connection.actions[action_name]
+            
+            # Count required parameters
+            required_params_count = sum(1 for param in action.parameters if param.required)
+            
+            # Check if we have enough parameters
+            if len(params) != required_params_count:
+                param_names = [param.name for param in action.parameters if param.required]
+                logging.error(f"\nError: Expected {required_params_count} required parameters for {action_name}: {', '.join(param_names)}")
+                return None
+            
+            # Convert list of params to kwargs dictionary
+            kwargs = {}
+            param_index = 0
+            for param in action.parameters:
+                if param.required:
+                    kwargs[param.name] = params[param_index]
+                    param_index += 1
+            
+            return connection.perform_action(action_name, kwargs)
+            
+        except Exception as e:
+            logging.error(f"\nAn error occurred while trying action {action_name} for {connection_name} connection: {e}")
+            return None
+
+    def get_model_providers(self) -> List[str]:
+        """Get a list of all LLM provider connections"""
+        return [
+            name for name, conn in self.connections.items() 
+            if conn.is_configured() and getattr(conn, 'is_llm_provider', lambda: False)
+        ]

@@ -22,7 +22,8 @@ class OpenAIAPIError(OpenAIConnectionError):
 class OpenAIConnection(BaseConnection):
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
-        self._client = None
+        self.model = config.get("model", "gpt-3.5-turbo")
+        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     @property
     def is_llm_provider(self) -> bool:
@@ -73,15 +74,6 @@ class OpenAIConnection(BaseConnection):
                 description="List all available OpenAI models"
             )
         }
-
-    def _get_client(self) -> OpenAI:
-        """Get or create OpenAI client"""
-        if not self._client:
-            api_key = os.getenv("OPENAI_API_KEY")
-            if not api_key:
-                raise OpenAIConfigurationError("OpenAI API key not found in environment")
-            self._client = OpenAI(api_key=api_key)
-        return self._client
 
     def configure(self) -> bool:
         """Sets up OpenAI API authentication"""
@@ -151,20 +143,17 @@ class OpenAIConnection(BaseConnection):
             })
 
             response = self.client.chat.completions.create(
-                model=self.config.get("model", "gpt-3.5-turbo"),  # Get model from config
+                model=self.model,
                 messages=messages,
                 temperature=0.9,
                 max_tokens=280
             )
 
-            if not response.choices:
-                raise ValueError("No response generated")
-
             return response.choices[0].message.content.strip()
 
         except Exception as e:
             logger.error(f"OpenAI text generation failed: {str(e)}")
-            raise Exception(f"Failed to generate text: {str(e)}")
+            raise
 
     def check_model(self, model, **kwargs):
         try:
@@ -208,25 +197,22 @@ class OpenAIConnection(BaseConnection):
         if action_name not in self.actions:
             raise ValueError(f"Unknown action: {action_name}")
 
-        if action_name == "generate-text":
-            if not params or len(params) < 1:
-                raise ValueError("Text prompt is required")
-            try:
+        try:
+            if action_name == "generate-text":
+                if not params or len(params) < 1:
+                    raise ValueError("Text prompt is required")
                 prompt = params[0]
                 system_prompt = params[1] if len(params) > 1 else None
                 return self.generate_text(prompt, system_prompt)
-            except Exception as e:
-                logger.error(f"Error in generate-text: {str(e)}")
-                raise
-
-        elif action_name == "generate-image":
-            if not params or len(params) < 1:
-                raise ValueError("Image prompt is required")
-            try:
+                
+            elif action_name == "generate-image":
+                if not params or len(params) < 1:
+                    raise ValueError("Image prompt is required")
                 return self.generate_image(params[0])
-            except Exception as e:
-                logger.error(f"Error in generate-image: {str(e)}")
-                raise
+                
+        except Exception as e:
+            logger.error(f"Error in {action_name}: {str(e)}")
+            raise
 
     def generate_image(self, prompt: str) -> str:
         """Generate image using DALL-E"""
@@ -241,4 +227,5 @@ class OpenAIConnection(BaseConnection):
             )
             return response.data[0].url
         except Exception as e:
-            raise Exception(f"Failed to generate image: {str(e)}")
+            logger.error(f"OpenAI image generation failed: {str(e)}")
+            raise

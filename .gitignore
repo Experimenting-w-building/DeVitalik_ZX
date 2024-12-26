@@ -17,3 +17,6 @@ agents/*.json
 
 # macOS
 .DS_Store
+
+# Reference Repository
+reference_repo/

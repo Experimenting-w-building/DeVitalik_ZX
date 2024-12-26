@@ -12,6 +12,7 @@ from prompt_toolkit.history import FileHistory
 from src.agent import ZerePyAgent
 from src.helpers import print_h_bar
 from cmd import Cmd
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -33,7 +34,7 @@ class Command:
 class ZerePyCLI(Cmd):
     def __init__(self):
         super().__init__()
-        self.prompt = "ZerePy-CLI > "
+        self.prompt = "ZerePy-CLI (no agent) > "
         self.agent = None
         
         # Create config directory if it doesn't exist
@@ -518,6 +519,23 @@ class ZerePyCLI(Cmd):
         logger.info("\nGoodbye! 👋")
         sys.exit(0)
 
+    def do_load_agent(self, agent_name: str):
+        """Load an agent configuration"""
+        try:
+            # Load the agent config
+            config_path = os.path.join("agents", f"{agent_name}.json")
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+                
+            # Create the agent
+            self.agent = ZerePyAgent(config)
+            self.prompt = f"ZerePy-CLI ({agent_name}) > "
+            print(f"✅ Successfully loaded agent: {agent_name}")
+            print_h_bar()
+            
+        except Exception as e:
+            print(f"Error loading agent: {str(e)}")
+            print_h_bar()
 
     ###################
     # Main CLI Loop

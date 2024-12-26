@@ -57,4 +57,32 @@ class ZerePyAgent:
             self._setup_llm_provider()
         return self.llm.chat(prompt)
         
-    def perform
+    def perform_action(self, connection: str, action: str, params: List[str] = None) -> str:
+        """Perform a single action with a connection"""
+        conn = self.connection_manager.get_connection(connection)
+        if not conn:
+            return f"Connection {connection} not found"
+            
+        if not hasattr(conn, action):
+            return f"Action {action} not found for connection {connection}"
+            
+        try:
+            if params:
+                result = getattr(conn, action)(*params)
+            else:
+                result = getattr(conn, action)()
+            return result
+        except Exception as e:
+            return f"Error performing action: {str(e)}"
+            
+    def loop(self):
+        """Main agent loop"""
+        logger.info(f"Starting agent loop for {self.name}")
+        try:
+            while True:
+                # Perform actions here
+                time.sleep(self.loop_delay)
+        except KeyboardInterrupt:
+            logger.info("Agent loop stopped by user")
+        except Exception as e:
+            logger.error(f"Error in agent loop: {str(e)}")

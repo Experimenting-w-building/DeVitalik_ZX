@@ -526,13 +526,20 @@ class ZerePyCLI(Cmd):
             config_path = os.path.join("agents", f"{agent_name}.json")
             with open(config_path, 'r') as f:
                 config = json.load(f)
-                
+            
+            # Add the name to the config
+            config["name"] = agent_name
+            config["username"] = config.get("username", "DeVitalik")
+            
             # Create the agent
             self.agent = ZerePyAgent(config)
             self.prompt = f"ZerePy-CLI ({agent_name}) > "
             print(f"✅ Successfully loaded agent: {agent_name}")
             print_h_bar()
             
+        except FileNotFoundError:
+            print(f"Agent config not found: {agent_name}")
+            print_h_bar()
         except Exception as e:
             print(f"Error loading agent: {str(e)}")
             print_h_bar()

@@ -522,24 +522,25 @@ class ZerePyCLI(Cmd):
     def do_load_agent(self, agent_name):
         """Load an agent configuration"""
         try:
-            print(f"DEBUG: Loading agent {agent_name}")
+            print(f"DEBUG: Agent name received: '{agent_name}'")  # Debug the input
+            
+            if not agent_name:
+                print("Error: Please provide an agent name")
+                return
+                
+            agent_name = agent_name.strip()  # Remove any whitespace
+            print(f"DEBUG: Loading config from agents/{agent_name}.json")
             
             # Load and parse JSON
-            with open(f"agents/{agent_name}.json", 'r') as f:
-                raw_config = f.read()
-                print(f"DEBUG: Raw config: {raw_config[:100]}...")  # Show first 100 chars
+            with open(f"agents/{agent_name}.json", 'r', encoding='utf-8') as f:
+                config = json.load(f)
                 
-                config = json.loads(raw_config)
-                print(f"DEBUG: Config type after json.loads: {type(config)}")
-                
-            if not isinstance(config, dict):
-                print(f"DEBUG: Config is not a dict! Type: {type(config)}")
-                raise ValueError(f"Invalid config format: {type(config)}")
-                
-            # Extract connections
+            print(f"DEBUG: Loaded config type: {type(config)}")
+            print(f"DEBUG: Config keys: {config.keys() if isinstance(config, dict) else 'NOT A DICT'}")
+            
+            # Extract connections from config
             connections = []
-            for conn in config.get("config", []):
-                print(f"DEBUG: Processing connection: {conn}")
+            for conn in config["config"]:
                 connections.append({
                     "type": conn["name"],
                     "config": conn
@@ -549,34 +550,18 @@ class ZerePyCLI(Cmd):
             agent_config = {
                 "name": config["name"],
                 "username": "DeVitalik",
-                "loop_delay": config.get("loop_delay", 300),
+                "loop_delay": config["loop_delay"],
                 "tweet_interval": 3600,
                 "connections": connections,
                 "model_provider": "openai"
             }
             
-            print(f"DEBUG: Final agent config: {agent_config}")
+            print(f"DEBUG: Created agent config")
             
             # Create agent
             self.agent = ZerePyAgent(agent_config)
-            
-            # Check connections
-            print("\nChecking connections...")
-            all_ok = True
-            
-            for conn_type in ["twitter", "openai", "anthropic"]:
-                try:
-                    status = self.agent.connection_manager.check_connection(conn_type)
-                    print(f"✅ {conn_type.capitalize()}: {status}")
-                except Exception as e:
-                    print(f"❌ {conn_type.capitalize()}: {str(e)}")
-                    all_ok = False
-            
-            if not all_ok:
-                print("\n⚠️  Some connections failed! Check your configuration and API keys.")
-            
             self.prompt = f"ZerePy-CLI ({agent_name}) > "
-            print(f"\n✅ Successfully loaded agent: {agent_name}")
+            print(f"✅ Successfully loaded agent: {agent_name}")
             print_h_bar()
             
         except Exception as e:

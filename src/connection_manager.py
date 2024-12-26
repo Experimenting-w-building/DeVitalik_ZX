@@ -32,24 +32,17 @@ class ConnectionManager:
         Create and register a new connection with configuration
         
         Args:
-            config_dic: Configuration dictionary containing name and other settings
+            name: Identifier for the connection
+            connection_class: The connection class to instantiate
+            config: Configuration dictionary for the connection
         """
         try:
-            if "name" not in config_dic:
-                logging.error(f"Missing 'name' in connection config: {config_dic}")
-                return
-                
             name = config_dic["name"]
             connection_class = self._class_name_to_type(name)
-            
-            if connection_class is None:
-                logging.error(f"Unknown connection type: {name}")
-                return
-                
             connection = connection_class(config_dic)
             self.connections[name] = connection
         except Exception as e:
-            logging.error(f"Failed to initialize connection: {e}")
+            logging.error(f"Failed to initialize connection {name}: {e}")
 
     def _check_connection(self, connection_string: str)-> bool:
         try:

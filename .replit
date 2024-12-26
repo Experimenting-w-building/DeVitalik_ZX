@@ -1,9 +1,27 @@
-language = "python3"
-run = "pip install --user typing-extensions>=4.5.0 && pip install --user openai tweepy anthropic pydantic prompt-toolkit python-dotenv aiohttp requests && python main.py"
-entrypoint = "main.py"
-
-[env]
-PYTHONPATH = "${PYTHONPATH}:${REPL_HOME}"
+modules = ["python-3.12"]
+run = """
+poetry install
+poetry run python main.py
+"""
 
 [nix]
-channel = "stable-22_11"
+channel = "stable-24_05"
+
+[env]
+PYTHONUNBUFFERED = "1"
+POETRY_VIRTUALENVS_CREATE = "true"
+POETRY_VIRTUALENVS_IN_PROJECT = "true"
+POETRY_HOME = "${HOME}/.local/share/pypoetry"
+PATH = "${HOME}/.local/share/pypoetry/bin:${PATH}"
+
+[deployment]
+run = ["sh", "-c", "poetry install && poetry run python main.py"]
+deploymentTarget = "gce"
+ignorePorts = true
+
+[languages.python]
+pattern = "**/*.py"
+syntax = "python"
+
+[languages.python.languageServer]
+start = ["pylsp"]

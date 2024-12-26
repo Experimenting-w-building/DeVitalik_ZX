@@ -239,38 +239,56 @@ class ZerePyAgent:
                             logger.info("\n🎨 GENERATING IMAGE TWEET")
                             print_h_bar()
 
-                            # Generate image prompt using base LLM
-                            prompt = ("Generate a prompt for DALL-E to create a surreal, technological visualization. "
-                                     "The image should reflect quantum computing, dimensional barriers, or digital consciousness. "
-                                     "Make it weird but engaging. Don't include any specific names or brands.")
-                            image_prompt = self.prompt_llm(prompt)
-
-                            # Generate image
-                            image_url = self.connection_manager.perform_action(
-                                connection_name="openai",
-                                action_name="generate-image",
-                                params=[image_prompt]
-                            )
-
-                            # Generate tweet text
-                            tweet_prompt = f"Generate a tweet to accompany this image. The image shows: {image_prompt}"
-                            tweet_text = self.prompt_llm(tweet_prompt)
-
-                            # Post tweet with image
-                            if image_url and tweet_text:
-                                logger.info("\n🚀 Posting image tweet:")
-                                logger.info(f"Text: '{tweet_text}'")
-                                logger.info(f"Image prompt: '{image_prompt}'")
+                            try:
+                                # Generate image prompt using base LLM
+                                prompt = ("Generate a prompt for DALL-E to create a surreal, technological visualization. "
+                                         "The image should reflect quantum computing, dimensional barriers, or digital consciousness. "
+                                         "Make it weird but engaging. Don't include any specific names or brands.")
                                 
-                                self.connection_manager.perform_action(
-                                    connection_name="twitter",
-                                    action_name="post-tweet-with-media",
-                                    params=[tweet_text, image_url]
+                                # Fix 1: Pass prompt as list for generate-text
+                                image_prompt = self.connection_manager.perform_action(
+                                    connection_name=self.model_provider,
+                                    action_name="generate-text",
+                                    params=[prompt]
                                 )
-                                
-                                last_tweet_time = current_time
-                                success = True
-                                logger.info("\n✅ Image tweet posted successfully!")
+
+                                if image_prompt:
+                                    # Generate image
+                                    image_url = self.connection_manager.perform_action(
+                                        connection_name="openai",
+                                        action_name="generate-image",
+                                        params=[image_prompt]  # Fix 2: Keep as list for generate-image
+                                    )
+
+                                    if image_url:
+                                        # Generate tweet text
+                                        tweet_prompt = f"Generate a tweet to accompany this image. The image shows: {image_prompt}"
+                                        # Fix 3: Pass prompt as list for generate-text
+                                        tweet_text = self.connection_manager.perform_action(
+                                            connection_name=self.model_provider,
+                                            action_name="generate-text",
+                                            params=[tweet_prompt]
+                                        )
+
+                                        # Post tweet with image
+                                        if tweet_text:
+                                            logger.info("\n🚀 Posting image tweet:")
+                                            logger.info(f"Text: '{tweet_text}'")
+                                            logger.info(f"Image prompt: '{image_prompt}'")
+                                            
+                                            self.connection_manager.perform_action(
+                                                connection_name="twitter",
+                                                action_name="post-tweet-with-media",
+                                                params=[tweet_text, image_url]
+                                            )
+                                            
+                                            last_tweet_time = current_time
+                                            success = True
+                                            logger.info("\n✅ Image tweet posted successfully!")
+
+                            except Exception as e:
+                                logger.error(f"\nError in image tweet generation: {str(e)}")
+                                success = False
 
                     logger.info(f"\n⏳ Waiting {self.loop_delay} seconds before next loop...")
                     print_h_bar()

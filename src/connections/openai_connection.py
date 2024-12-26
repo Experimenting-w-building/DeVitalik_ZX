@@ -141,15 +141,29 @@ class OpenAIConnection(BaseConnection):
         try:
             messages = []
             if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})
-            messages.append({"role": "user", "content": prompt})
+                messages.append({
+                    "role": "system",
+                    "content": system_prompt
+                })
+            messages.append({
+                "role": "user",
+                "content": prompt
+            })
 
             response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages
+                model=self.config.get("model", "gpt-3.5-turbo"),  # Get model from config
+                messages=messages,
+                temperature=0.9,
+                max_tokens=280
             )
+
+            if not response.choices:
+                raise ValueError("No response generated")
+
             return response.choices[0].message.content.strip()
+
         except Exception as e:
+            logger.error(f"OpenAI text generation failed: {str(e)}")
             raise Exception(f"Failed to generate text: {str(e)}")
 
     def check_model(self, model, **kwargs):
@@ -197,16 +211,22 @@ class OpenAIConnection(BaseConnection):
         if action_name == "generate-text":
             if not params or len(params) < 1:
                 raise ValueError("Text prompt is required")
-            prompt = params[0]
-            system_prompt = params[1] if len(params) > 1 else None
-            return self.generate_text(prompt, system_prompt)
-            
+            try:
+                prompt = params[0]
+                system_prompt = params[1] if len(params) > 1 else None
+                return self.generate_text(prompt, system_prompt)
+            except Exception as e:
+                logger.error(f"Error in generate-text: {str(e)}")
+                raise
+
         elif action_name == "generate-image":
             if not params or len(params) < 1:
                 raise ValueError("Image prompt is required")
-            return self.generate_image(params[0])
-        else:
-            raise ValueError(f"Action not implemented: {action_name}")
+            try:
+                return self.generate_image(params[0])
+            except Exception as e:
+                logger.error(f"Error in generate-image: {str(e)}")
+                raise
 
     def generate_image(self, prompt: str) -> str:
         """Generate image using DALL-E"""

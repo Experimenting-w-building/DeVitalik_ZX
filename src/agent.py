@@ -330,3 +330,28 @@ class ZerePyAgent:
             f"Keep it under 100 characters and make it feel like a quick, unhinged response.")
             
         return self.prompt_llm(base_prompt)
+
+    def _process_timeline(self) -> None:
+        """Process the timeline for potential interactions"""
+        logger.info("\n👀 READING TIMELINE")
+        
+        try:
+            # Get timeline tweets
+            timeline = self.connection_manager.perform_action(
+                connection_name="twitter",
+                action_name="read-timeline"
+            )
+            
+            # Process each tweet
+            for tweet in timeline:
+                # Check if we should reply (only if mentioned)
+                if self._should_reply_to_tweet(tweet):
+                    self._generate_and_post_reply(tweet)
+                    
+                # Consider liking the tweet
+                if random.random() < 0.5:  # 50% chance to like
+                    self._like_tweet(tweet)
+                    
+        except Exception as e:
+            logger.error(f"\nError processing timeline: {str(e)}")
+            raise

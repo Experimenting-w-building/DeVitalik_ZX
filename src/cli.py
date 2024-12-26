@@ -526,17 +526,28 @@ class ZerePyCLI(Cmd):
             
             with open(f"agents/{agent_name}.json", 'r') as f:
                 config = json.load(f)
-                print(f"DEBUG: Loaded config type: {type(config)}")
-                print(f"DEBUG: Config content: {config}")
                 
-            if isinstance(config, str):
-                print("DEBUG: Converting string config to dict")
-                config = json.loads(config)
+            # Extract connections from config
+            connections = []
+            for conn in config.get("config", []):
+                connections.append({
+                    "type": conn["name"],
+                    "config": conn
+                })
                 
-            print(f"DEBUG: Final config type: {type(config)}")
-            print(f"DEBUG: Final config: {config}")
+            # Add required fields
+            agent_config = {
+                "name": config["name"],
+                "username": "DeVitalik",
+                "loop_delay": config.get("loop_delay", 300),
+                "tweet_interval": 3600,
+                "connections": connections,
+                "model_provider": "openai"
+            }
             
-            self.agent = ZerePyAgent(config)
+            print(f"DEBUG: Final agent config: {agent_config}")
+            
+            self.agent = ZerePyAgent(agent_config)
             self.prompt = f"ZerePy-CLI ({agent_name}) > "
             print(f"✅ Successfully loaded agent: {agent_name}")
             print_h_bar()

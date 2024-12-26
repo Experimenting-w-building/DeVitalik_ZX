@@ -311,16 +311,22 @@ class ZerePyAgent:
             logger.info("\n🛑 Agent loop stopped by user.")
             return
 
+    def _should_reply_to_tweet(self, tweet: Dict[str, Any]) -> bool:
+        """Determine if we should reply to a tweet"""
+        # Skip if it's our own tweet
+        if tweet.get('author_username', '').lower() == self.username.lower():
+            return False
+            
+        # Only reply if we're mentioned
+        mentions = tweet.get('mentions', [])
+        return self.username.lower() in [m.lower() for m in mentions]
+
     def generate_reply(self, tweet: Dict[str, Any]) -> str:
         """Generate a reply to a tweet"""
-        # Let's add debug logging here
-        print(f"DEBUG: Tweet text to reply to: {tweet.get('text')}")
-        
+        if not self._should_reply_to_tweet(tweet):
+            return None
+            
         base_prompt = (f"Generate a short, chaotic reply to this tweet: {tweet.get('text')}. "
             f"Keep it under 100 characters and make it feel like a quick, unhinged response.")
-        
-        # Debug the prompt and params
-        print(f"DEBUG: Base prompt: {base_prompt}")
-        print(f"DEBUG: About to call prompt_llm with prompt")
-        
+            
         return self.prompt_llm(base_prompt)

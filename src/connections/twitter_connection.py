@@ -6,6 +6,7 @@ from dotenv import set_key, load_dotenv
 import tweepy
 from src.connections.base_connection import BaseConnection, Action, ActionParameter
 from src.helpers import print_h_bar
+import requests
 
 logger = logging.getLogger("connections.twitter_connection")
 
@@ -25,6 +26,19 @@ class TwitterConnection(BaseConnection):
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
         self._oauth_session = None
+        self.timeline_read_count = config.get("timeline_read_count", 10)
+        self.tweet_interval = config.get("tweet_interval", 900)
+        
+        # Set up Twitter client
+        auth = tweepy.OAuthHandler(
+            os.getenv("TWITTER_API_KEY"),
+            os.getenv("TWITTER_API_SECRET")
+        )
+        auth.set_access_token(
+            os.getenv("TWITTER_ACCESS_TOKEN"),
+            os.getenv("TWITTER_ACCESS_TOKEN_SECRET")
+        )
+        self.client = tweepy.API(auth)
 
     @property
     def is_llm_provider(self) -> bool:
@@ -92,6 +106,14 @@ class TwitterConnection(BaseConnection):
                     ActionParameter("tweet_id", True, str, "ID of the tweet to query for replies")
                 ],
                 description="Fetch tweet replies"
+            ),
+            "post-tweet-with-media": Action(
+                name="post-tweet-with-media",
+                parameters=[
+                    ActionParameter("text", True, str, "Text content of the tweet"),
+                    ActionParameter("media_url", True, str, "URL of the media to attach")
+                ],
+                description="Post a new tweet with media"
             )
         }
 
@@ -346,24 +368,24 @@ class TwitterConnection(BaseConnection):
                 logger.error(f"Configuration validation failed: {error_msg}")
             return False
 
-    def perform_action(self, action_name: str, kwargs) -> Any:
+    def perform_action(self, action_name: str, params: List[Any] = None) -> Any:
         """Execute a Twitter action with validation"""
         if action_name not in self.actions:
             raise KeyError(f"Unknown action: {action_name}")
 
         action = self.actions[action_name]
-        errors = action.validate_params(kwargs)
+        errors = action.validate_params(params)
         if errors:
             raise ValueError(f"Invalid parameters: {', '.join(errors)}")
 
         # Add config parameters if not provided
-        if action_name == "read-timeline" and "count" not in kwargs:
-            kwargs["count"] = self.config["timeline_read_count"]
+        if action_name == "read-timeline" and "count" not in params:
+            params["count"] = self.config["timeline_read_count"]
 
         # Call the appropriate method based on action name
         method_name = action_name.replace('-', '_')
         method = getattr(self, method_name)
-        return method(**kwargs)
+        return method(**params)
 
     def read_timeline(self, count: int = None, **kwargs) -> list:
         """Read tweets from the user's timeline"""
@@ -488,3 +510,36 @@ class TwitterConnection(BaseConnection):
         
         logger.info(f"Retrieved {len(replies)} replies")
         return replies
+
+    def download_media(self, url: str) -> str:
+        """Download media from URL to temp file"""
+        response = requests.get(url)
+        if response.status_code != 200:
+            raise Exception(f"Failed to download media: {response.status_code}")
+        
+        # Save to temp file
+        temp_path = f"/tmp/media_{os.urandom(8).hex()}.png"
+        with open(temp_path, "wb") as f:
+            f.write(response.content)
+        return temp_path
+
+    def post_tweet_with_media(self, text: str, media_url: str) -> None:
+        """Post a tweet with media"""
+        try:
+            # Download media
+            media_path = self.download_media(media_url)
+            
+            # Upload media
+            media = self.client.media_upload(media_path)
+            
+            # Post tweet with media
+            self.client.update_status(
+                status=text,
+                media_ids=[media.media_id]
+            )
+            
+            # Clean up temp file
+            os.remove(media_path)
+            
+        except Exception as e:
+            raise Exception(f"Failed to post tweet with media: {str(e)}")

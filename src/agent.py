@@ -145,10 +145,11 @@ class ZerePyAgent:
                             logger.info("\n📝 GENERATING NEW TWEET")
                             print_h_bar()
 
-                            prompt = ("Generate an engaging tweet. Don't include any hashtags, links or emojis. Keep it under 280 characters."
-                                    f"The tweets should be pure commentary, do not shill any coins or projects apart from {self.name}. Do not repeat any of the"
-                                    "tweets that were given as example. Avoid the words AI and crypto.")
-                            tweet_text = self.prompt_llm(prompt)
+                            tweet_prompt = ("Generate a short, chaotic tweet. Keep it under 100 characters. "
+                                "Make it feel unhinged and weird. Be sarcastic or mock something about "
+                                "technology/crypto/reality. No philosophical quotes or formal language. "
+                                "Pure chaos demon energy only.")
+                            tweet_text = self.prompt_llm(tweet_prompt)
 
                             if tweet_text:
                                 logger.info("\n🚀 Posting tweet:")
@@ -190,9 +191,11 @@ class ZerePyAgent:
                             logger.info(f"\n💬 GENERATING REPLY to: {tweet.get('text', '')[:50]}...")
 
                             # Customize prompt based on whether it's a self-reply
-                            base_prompt = (f"Generate a friendly, engaging reply to this tweet: {tweet.get('text')}. Keep it under 280 characters. Don't include any usernames, hashtags, links or emojis. "
-                                f"The tweets should be pure commentary, do not shill any coins or projects apart from {self.name}. Do not repeat any of the"
-                                "tweets that were given as example. Avoid the words AI and crypto.")
+                            base_prompt = (f"Generate a short, chaotic reply to this tweet: {tweet.get('text')}. "
+                                f"Keep it under 100 characters and make it feel like a quick, unhinged response. "
+                                f"Be sarcastic, weird, or mock the concept in the tweet. No philosophical quotes, "
+                                f"no formal language, and definitely no corporate-speak. Channel pure chaos demon energy. "
+                                f"Don't include usernames, hashtags, or emojis.")
 
                             system_prompt = self._construct_system_prompt()
                             reply_text = self.prompt_llm(prompt=base_prompt, system_prompt=system_prompt)
@@ -225,6 +228,44 @@ class ZerePyAgent:
                             success = True
                             logger.info("✅ Tweet liked successfully!")
 
+                    elif action_name == "post-image-tweet":
+                        current_time = time.time()
+                        if current_time - last_tweet_time >= self.tweet_interval:
+                            logger.info("\n🎨 GENERATING IMAGE TWEET")
+                            print_h_bar()
+
+                            # Generate image prompt using base LLM
+                            prompt = ("Generate a prompt for DALL-E to create a surreal, technological visualization. "
+                                     "The image should reflect quantum computing, dimensional barriers, or digital consciousness. "
+                                     "Make it weird but engaging. Don't include any specific names or brands.")
+                            image_prompt = self.prompt_llm(prompt)
+
+                            # Generate image
+                            image_url = self.connection_manager.perform_action(
+                                connection_name="dalle",
+                                action_name="generate-image",
+                                params=[image_prompt]
+                            )
+
+                            # Generate tweet text
+                            tweet_prompt = f"Generate a tweet to accompany this image. The image shows: {image_prompt}"
+                            tweet_text = self.prompt_llm(tweet_prompt)
+
+                            # Post tweet with image
+                            if image_url and tweet_text:
+                                logger.info("\n🚀 Posting image tweet:")
+                                logger.info(f"Text: '{tweet_text}'")
+                                logger.info(f"Image prompt: '{image_prompt}'")
+                                
+                                self.connection_manager.perform_action(
+                                    connection_name="twitter",
+                                    action_name="post-tweet-with-media",
+                                    params=[tweet_text, image_url]
+                                )
+                                
+                                last_tweet_time = current_time
+                                success = True
+                                logger.info("\n✅ Image tweet posted successfully!")
 
                     logger.info(f"\n⏳ Waiting {self.loop_delay} seconds before next loop...")
                     print_h_bar()

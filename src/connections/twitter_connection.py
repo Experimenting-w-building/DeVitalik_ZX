@@ -31,8 +31,8 @@ class TwitterConnection(BaseConnection):
         
         # Set up Twitter client
         auth = tweepy.OAuthHandler(
-            os.getenv("TWITTER_API_KEY"),
-            os.getenv("TWITTER_API_SECRET")
+            os.getenv("TWITTER_CONSUMER_KEY"),
+            os.getenv("TWITTER_CONSUMER_SECRET")
         )
         auth.set_access_token(
             os.getenv("TWITTER_ACCESS_TOKEN"),

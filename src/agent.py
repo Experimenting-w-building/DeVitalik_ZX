@@ -6,14 +6,9 @@ import os
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel
+from dataclasses import dataclass
 from src.connection_manager import ConnectionManager
 from src.helpers import print_h_bar
-import tweepy
-from src.services.twitter_service import TwitterService
-from openai import OpenAI
-from src.services.tweet_generator import TweetGenerator
-from src.services.visualization_service import VisualizationService
 import asyncio
 
 REQUIRED_FIELDS = ["name", "bio", "traits", "examples", "loop_delay", "config", "tasks"]
@@ -27,7 +22,8 @@ except ImportError as e:
     logger.error(f"Failed to import required modules: {e}")
     raise
 
-class AgentConfig(BaseModel):
+@dataclass
+class AgentConfig:
     """Agent configuration model"""
     name: str
     bio: List[str]
@@ -37,13 +33,22 @@ class AgentConfig(BaseModel):
     config: List[Dict[str, Any]]
     tasks: List[Dict[str, Any]]
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'AgentConfig':
+        """Create AgentConfig from dictionary"""
+        for field in REQUIRED_FIELDS:
+            if field not in data:
+                raise AgentConfigError(f"Missing required field: {field}")
+        return cls(**data)
+
 class ZerePyAgent:
     def __init__(self, agent_name: str):
         try:
             # Load and validate agent configuration
             agent_path = Path("agents") / f"{agent_name}.json"
-            agent_dict = json.load(open(agent_path, "r"))
-            self.config = AgentConfig(**agent_dict)
+            with open(agent_path, "r") as f:
+                agent_dict = json.load(f)
+            self.config = AgentConfig.from_dict(agent_dict)
             
             # Initialize core components
             self.name = self.config.name

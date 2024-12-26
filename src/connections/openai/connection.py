@@ -1,5 +1,5 @@
 from typing import Dict, Any, List, Optional, Literal
-from pydantic import BaseModel, Field
+from dataclasses import dataclass, field
 import logging
 import asyncio
 from datetime import datetime
@@ -9,32 +9,48 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+@dataclass
 class OpenAIConfig(ConnectionConfig):
     """OpenAI-specific configuration"""
-    model: str = Field(default="gpt-3.5-turbo")
-    temperature: float = Field(default=0.7, ge=0, le=2)
-    max_tokens: int = Field(default=1000, gt=0)
-    frequency_penalty: float = Field(default=0.0, ge=-2.0, le=2.0)
-    presence_penalty: float = Field(default=0.0, ge=-2.0, le=2.0)
-    rate_limit_rpm: int = Field(default=60, gt=0)
+    model: str = "gpt-3.5-turbo"
+    temperature: float = 0.7
+    max_tokens: int = 1000
+    frequency_penalty: float = 0.0
+    presence_penalty: float = 0.0
+    rate_limit_rpm: int = 60
     # Image generation configs
-    image_model: str = Field(default="dall-e-3")
-    image_size: str = Field(default="1024x1024")
-    image_quality: str = Field(default="standard")
-    image_style: str = Field(default="vivid")
+    image_model: str = "dall-e-3"
+    image_size: str = "1024x1024"
+    image_quality: str = "standard"
+    image_style: str = "vivid"
 
-class ChatMessage(BaseModel):
+    def __post_init__(self):
+        if not (0 <= self.temperature <= 2):
+            raise ValueError("Temperature must be between 0 and 2")
+        if self.max_tokens <= 0:
+            raise ValueError("Max tokens must be positive")
+        if not (-2.0 <= self.frequency_penalty <= 2.0):
+            raise ValueError("Frequency penalty must be between -2.0 and 2.0")
+        if not (-2.0 <= self.presence_penalty <= 2.0):
+            raise ValueError("Presence penalty must be between -2.0 and 2.0")
+        if self.rate_limit_rpm <= 0:
+            raise ValueError("Rate limit must be positive")
+
+@dataclass
+class ChatMessage:
     """Chat message model"""
     role: str
     content: str
 
-class ChatResponse(BaseModel):
+@dataclass
+class ChatResponse:
     """Response from chat completion"""
     content: str
-    finish_reason: Optional[str]
-    usage: Dict[str, int]
+    finish_reason: Optional[str] = None
+    usage: Dict[str, int] = field(default_factory=dict)
 
-class ImageGenerationResponse(BaseModel):
+@dataclass
+class ImageGenerationResponse:
     """Response from image generation"""
     image_url: str
     prompt: str

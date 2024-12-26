@@ -90,3 +90,50 @@ class ZerePyAgent:
             logger.info("✅ Tweet liked successfully!")
         except Exception as e:
             logger.error(f"\nError liking tweet: {str(e)}")
+
+    def _generate_and_post_tweet(self) -> None:
+        """Generate and post a new tweet"""
+        try:
+            logger.info("\n📝 GENERATING NEW TWEET")
+            
+            # Generate tweet text
+            prompt = "Generate a short, chaotic tweet about tech, crypto, or AI. Keep it under 100 characters."
+            tweet_text = self.prompt_llm(prompt)
+            
+            if tweet_text:
+                # Post the tweet
+                self.connection_manager.perform_action(
+                    connection_name="twitter",
+                    action_name="post-tweet",
+                    params=[tweet_text]
+                )
+                
+        except Exception as e:
+            logger.error(f"\nError generating tweet: {str(e)}")
+
+    def run(self) -> None:
+        """Run the agent's main loop"""
+        logger.info("\nStarting loop in 5 seconds...")
+        for i in range(5, 0, -1):
+            logger.info(f"{i}...")
+            time.sleep(1)
+
+        while True:
+            try:
+                # Process timeline
+                self._process_timeline()
+                
+                # Select and perform random action
+                action = self._select_action()
+                if action == "post-tweet":
+                    self._generate_and_post_tweet()
+                elif action == "like-tweet":
+                    self._like_random_tweet()
+                
+                # Wait before next iteration
+                self._wait_loop_delay()
+                
+            except Exception as e:
+                logger.error(f"\n❌ Error in agent loop iteration: {str(e)}")
+                self._wait_loop_delay()
+                continue

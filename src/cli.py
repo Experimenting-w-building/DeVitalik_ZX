@@ -547,10 +547,28 @@ class ZerePyCLI(Cmd):
             
             print(f"DEBUG: Final agent config: {agent_config}")
             
+            # Create agent
             self.agent = ZerePyAgent(agent_config)
+            
+            # Check connections
+            print("\nChecking connections...")
+            all_ok = True
+            
+            for conn_type in ["twitter", "openai", "anthropic"]:
+                try:
+                    status = self.agent.connection_manager.check_connection(conn_type)
+                    print(f"✅ {conn_type.capitalize()}: {status}")
+                except Exception as e:
+                    print(f"❌ {conn_type.capitalize()}: {str(e)}")
+                    all_ok = False
+            
+            if not all_ok:
+                print("\n⚠️  Some connections failed! Check your configuration and API keys.")
+            
             self.prompt = f"ZerePy-CLI ({agent_name}) > "
-            print(f"✅ Successfully loaded agent: {agent_name}")
+            print(f"\n✅ Successfully loaded agent: {agent_name}")
             print_h_bar()
+            
         except Exception as e:
             print(f"Error loading agent: {str(e)}")
             print(f"Error type: {type(e)}")
@@ -564,6 +582,23 @@ class ZerePyCLI(Cmd):
             print("No default agent is loaded, please use the load-agent command to do that.")
             print("Please load an agent to see the list of supported actions")
             return
+            
+        # Check connections before starting
+        print("\nVerifying connections before start...")
+        all_ok = True
+        
+        for conn_type in ["twitter", "openai", "anthropic"]:
+            try:
+                status = self.agent.connection_manager.check_connection(conn_type)
+                print(f"✅ {conn_type.capitalize()}: {status}")
+            except Exception as e:
+                print(f"❌ {conn_type.capitalize()}: {str(e)}")
+                all_ok = False
+                
+        if not all_ok:
+            print("\n⚠️  Some connections failed! The agent may not work correctly.")
+            return
+            
         try:
             self.agent.run()
         except Exception as e:

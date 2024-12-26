@@ -2,7 +2,7 @@ import sys
 import json
 import logging
 from dataclasses import dataclass
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional
 from pathlib import Path
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import WordCompleter
@@ -522,42 +522,50 @@ class ZerePyCLI(Cmd):
     def do_load_agent(self, agent_name: str):
         """Load an agent configuration"""
         try:
-            # Debug output
-            print(f"Loading agent: {agent_name}")
-            
-            # Load the agent config
-            config_path = os.path.join("agents", f"{agent_name}.json")
-            print(f"Config path: {config_path}")
-            
-            with open(config_path, 'r') as f:
+            with open(f"agents/{agent_name}.json", 'r') as f:
                 config = json.load(f)
-                print(f"Loaded config: {config}")
-            
-            # Create base config if none exists
-            if not isinstance(config, dict):
-                config = {}
-            
-            # Add required fields
-            config["name"] = agent_name
-            config["username"] = "DeVitalik"
-            config["loop_delay"] = 180
-            config["tweet_interval"] = 3600
-            config["model_provider"] = "openai"
-            
-            print(f"Final config: {config}")
-            
-            # Create the agent
             self.agent = ZerePyAgent(config)
             self.prompt = f"ZerePy-CLI ({agent_name}) > "
             print(f"✅ Successfully loaded agent: {agent_name}")
             print_h_bar()
-            
         except Exception as e:
             print(f"Error loading agent: {str(e)}")
-            print(f"Error type: {type(e)}")
-            import traceback
-            print(f"Traceback: {traceback.format_exc()}")
             print_h_bar()
+
+    def do_start(self, arg):
+        """Start the agent's main loop"""
+        if not self.agent:
+            print("No default agent is loaded, please use the load-agent command to do that.")
+            print("Please load an agent to see the list of supported actions")
+            return
+        try:
+            self.agent.run()
+        except Exception as e:
+            print(f"Error in agent loop: {str(e)}")
+            print_h_bar()
+
+    def do_stop(self, arg):
+        """Stop the agent's main loop"""
+        if not self.agent:
+            print("No agent is running")
+            return
+        print("Stopping agent...")
+        # Add stop logic here if needed
+
+    def do_exit(self, arg):
+        """Exit the CLI"""
+        print("Exiting...")
+        return True
+
+    def do_help(self, arg):
+        """Show help message"""
+        print("\nAvailable commands:")
+        print("  load-agent <name>  - Load an agent configuration")
+        print("  start             - Start the agent's main loop")
+        print("  stop              - Stop the agent's main loop")
+        print("  exit              - Exit the CLI")
+        print("  help              - Show this help message")
+        print_h_bar()
 
     ###################
     # Main CLI Loop

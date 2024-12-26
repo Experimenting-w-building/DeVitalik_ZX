@@ -7,6 +7,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from src.connection_manager import ConnectionManager
 from src.helpers import print_h_bar
+from typing import Dict, Any
 
 REQUIRED_FIELDS = ["name", "bio", "traits", "examples", "loop_delay", "config", "tasks"]
 
@@ -93,9 +94,16 @@ class ZerePyAgent:
         if not self.is_llm_set:
             self._setup_llm_provider()
             self.is_llm_set = True
-
-        # Don't include system_prompt in params list if it's None
-        params = [prompt] if system_prompt is None else [prompt, system_prompt]
+            
+        print(f"DEBUG: In prompt_llm - Prompt: {prompt}")
+        print(f"DEBUG: In prompt_llm - System prompt: {system_prompt}")
+        
+        # Ensure params is a list with at least the prompt
+        params = [prompt]
+        if system_prompt is not None:
+            params.append(system_prompt)
+            
+        print(f"DEBUG: Final params list: {params}")
         
         return self.connection_manager.perform_action(
             connection_name=self.model_provider,
@@ -302,3 +310,17 @@ class ZerePyAgent:
         except KeyboardInterrupt:
             logger.info("\n🛑 Agent loop stopped by user.")
             return
+
+    def generate_reply(self, tweet: Dict[str, Any]) -> str:
+        """Generate a reply to a tweet"""
+        # Let's add debug logging here
+        print(f"DEBUG: Tweet text to reply to: {tweet.get('text')}")
+        
+        base_prompt = (f"Generate a short, chaotic reply to this tweet: {tweet.get('text')}. "
+            f"Keep it under 100 characters and make it feel like a quick, unhinged response.")
+        
+        # Debug the prompt and params
+        print(f"DEBUG: Base prompt: {base_prompt}")
+        print(f"DEBUG: About to call prompt_llm with prompt")
+        
+        return self.prompt_llm(base_prompt)

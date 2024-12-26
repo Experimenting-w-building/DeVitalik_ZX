@@ -369,23 +369,37 @@ class TwitterConnection(BaseConnection):
             return False
 
     def perform_action(self, action_name: str, params: List[Any] = None) -> Any:
-        """Execute a Twitter action with validation"""
+        """Perform a Twitter action"""
         if action_name not in self.actions:
-            raise KeyError(f"Unknown action: {action_name}")
+            raise ValueError(f"Unknown action: {action_name}")
 
-        action = self.actions[action_name]
-        errors = action.validate_params(params)
-        if errors:
-            raise ValueError(f"Invalid parameters: {', '.join(errors)}")
-
-        # Add config parameters if not provided
-        if action_name == "read-timeline" and "count" not in params:
-            params["count"] = self.config["timeline_read_count"]
-
-        # Call the appropriate method based on action name
-        method_name = action_name.replace('-', '_')
-        method = getattr(self, method_name)
-        return method(**params)
+        try:
+            if action_name == "read-timeline":
+                # Default to timeline_read_count if no count provided
+                count = params[0] if params and len(params) > 0 else self.timeline_read_count
+                return self.read_timeline(count=count)
+                
+            elif action_name == "post-tweet":
+                if not params or len(params) < 1:
+                    raise ValueError("Tweet text is required")
+                return self.post_tweet(message=params[0])
+                
+            elif action_name == "post-tweet-with-media":
+                if not params or len(params) < 2:
+                    raise ValueError("Tweet text and media URL are required")
+                return self.post_tweet_with_media(text=params[0], media_url=params[1])
+                
+            elif action_name == "like-tweet":
+                if not params or len(params) < 1:
+                    raise ValueError("Tweet ID is required")
+                return self.like_tweet(tweet_id=params[0])
+                
+            else:
+                raise ValueError(f"Action not implemented: {action_name}")
+                
+        except Exception as e:
+            logger.error(f"Error in Twitter action {action_name}: {str(e)}")
+            raise
 
     def read_timeline(self, count: int = None, **kwargs) -> list:
         """Read tweets from the user's timeline"""

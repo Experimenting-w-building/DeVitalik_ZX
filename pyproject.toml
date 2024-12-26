@@ -2,7 +2,9 @@
 name = "devitalik-zx"
 version = "0.1.0"
 description = "DeVitalik ZX Bot"
-authors = ["Your Name <your.email@example.com>"]
+authors = ["Blorm <ayoub@blorm.xyz>"]
+license = "MIT"
+readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.9"

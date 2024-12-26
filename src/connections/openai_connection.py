@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Dict, Any
+from typing import Dict, Any, List
 from dotenv import load_dotenv, set_key
 from openai import OpenAI
 from src.connections.base_connection import BaseConnection, Action, ActionParameter
@@ -48,11 +48,17 @@ class OpenAIConnection(BaseConnection):
             "generate-text": Action(
                 name="generate-text",
                 parameters=[
-                    ActionParameter("prompt", True, str, "The input prompt for text generation"),
-                    ActionParameter("system_prompt", True, str, "System prompt to guide the model"),
-                    ActionParameter("model", False, str, "Model to use for generation")
+                    ActionParameter("prompt", True, str, "Text prompt for generation"),
+                    ActionParameter("system_prompt", False, str, "System prompt for context")
                 ],
-                description="Generate text using OpenAI models"
+                description="Generate text using the configured model"
+            ),
+            "generate-image": Action(
+                name="generate-image",
+                parameters=[
+                    ActionParameter("prompt", True, str, "Image generation prompt")
+                ],
+                description="Generate an image using DALL-E"
             ),
             "check-model": Action(
                 name="check-model",
@@ -190,17 +196,33 @@ class OpenAIConnection(BaseConnection):
         except Exception as e:
             raise OpenAIAPIError(f"Listing models failed: {e}")
     
-    def perform_action(self, action_name: str, kwargs) -> Any:
+    def perform_action(self, action_name: str, params: List[Any] = None) -> Any:
         """Execute a Twitter action with validation"""
         if action_name not in self.actions:
-            raise KeyError(f"Unknown action: {action_name}")
+            raise ValueError(f"Unknown action: {action_name}")
 
-        action = self.actions[action_name]
-        errors = action.validate_params(kwargs)
-        if errors:
-            raise ValueError(f"Invalid parameters: {', '.join(errors)}")
+        if action_name == "generate-text":
+            if not params or len(params) < 1:
+                raise ValueError("Text prompt is required")
+            return self.generate_text(params[0], params[1] if len(params) > 1 else None)
+        elif action_name == "generate-image":
+            if not params or len(params) < 1:
+                raise ValueError("Image prompt is required")
+            return self.generate_image(params[0])
+        else:
+            raise ValueError(f"Action not implemented: {action_name}")
 
-        # Call the appropriate method based on action name
-        method_name = action_name.replace('-', '_')
-        method = getattr(self, method_name)
-        return method(**kwargs)
+    def generate_image(self, prompt: str) -> str:
+        """Generate image using DALL-E"""
+        try:
+            response = self.client.images.generate(
+                model=self.config.get("dalle_model", "dall-e-3"),
+                prompt=prompt,
+                size=self.config.get("image_size", "1024x1024"),
+                quality=self.config.get("image_quality", "standard"),
+                style=self.config.get("style", "vivid"),
+                n=1
+            )
+            return response.data[0].url
+        except Exception as e:
+            raise Exception(f"Failed to generate image: {str(e)}")

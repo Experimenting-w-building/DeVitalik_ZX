@@ -242,7 +242,7 @@ class ZerePyAgent:
 
                             # Generate image
                             image_url = self.connection_manager.perform_action(
-                                connection_name="dalle",
+                                connection_name="openai",
                                 action_name="generate-image",
                                 params=[image_prompt]
                             )

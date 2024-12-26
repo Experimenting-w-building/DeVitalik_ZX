@@ -90,8 +90,13 @@ class ZerePyAgent:
 
     def prompt_llm(self, prompt: str, system_prompt: str = None) -> str:
         """Generate text using the configured LLM provider"""
+        if not self.is_llm_set:
+            self._setup_llm_provider()
+            self.is_llm_set = True
+            
         system_prompt = system_prompt or self._construct_system_prompt()
-
+        
+        # Ensure params is always a list
         return self.connection_manager.perform_action(
             connection_name=self.model_provider,
             action_name="generate-text",

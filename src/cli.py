@@ -524,18 +524,28 @@ class ZerePyCLI(Cmd):
         try:
             print(f"DEBUG: Loading agent {agent_name}")
             
+            # Load and parse JSON
             with open(f"agents/{agent_name}.json", 'r') as f:
-                config = json.load(f)
+                raw_config = f.read()
+                print(f"DEBUG: Raw config: {raw_config[:100]}...")  # Show first 100 chars
                 
-            # Extract connections from config
+                config = json.loads(raw_config)
+                print(f"DEBUG: Config type after json.loads: {type(config)}")
+                
+            if not isinstance(config, dict):
+                print(f"DEBUG: Config is not a dict! Type: {type(config)}")
+                raise ValueError(f"Invalid config format: {type(config)}")
+                
+            # Extract connections
             connections = []
             for conn in config.get("config", []):
+                print(f"DEBUG: Processing connection: {conn}")
                 connections.append({
                     "type": conn["name"],
                     "config": conn
                 })
                 
-            # Add required fields
+            # Build agent config
             agent_config = {
                 "name": config["name"],
                 "username": "DeVitalik",

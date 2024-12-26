@@ -11,6 +11,7 @@ from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import FileHistory
 from src.agent import ZerePyAgent
 from src.helpers import print_h_bar
+from cmd import Cmd
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -29,8 +30,10 @@ class Command:
         if self.aliases is None:
             self.aliases = []
 
-class ZerePyCLI:
+class ZerePyCLI(Cmd):
     def __init__(self):
+        super().__init__()
+        self.prompt = "ZerePy-CLI > "
         self.agent = None
         
         # Create config directory if it doesn't exist
@@ -385,7 +388,7 @@ class ZerePyCLI:
             return
 
         try:
-            self.agent.loop()
+            self.agent.run()
         except KeyboardInterrupt:
             logger.info("\n🛑 Agent loop stopped by user.")
         except Exception as e:

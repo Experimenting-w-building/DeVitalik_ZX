@@ -519,17 +519,32 @@ class ZerePyCLI(Cmd):
         logger.info("\nGoodbye! 👋")
         sys.exit(0)
 
-    def do_load_agent(self, agent_name: str):
+    def do_load_agent(self, agent_name):
         """Load an agent configuration"""
         try:
+            print(f"DEBUG: Loading agent {agent_name}")
+            
             with open(f"agents/{agent_name}.json", 'r') as f:
                 config = json.load(f)
+                print(f"DEBUG: Loaded config type: {type(config)}")
+                print(f"DEBUG: Config content: {config}")
+                
+            if isinstance(config, str):
+                print("DEBUG: Converting string config to dict")
+                config = json.loads(config)
+                
+            print(f"DEBUG: Final config type: {type(config)}")
+            print(f"DEBUG: Final config: {config}")
+            
             self.agent = ZerePyAgent(config)
             self.prompt = f"ZerePy-CLI ({agent_name}) > "
             print(f"✅ Successfully loaded agent: {agent_name}")
             print_h_bar()
         except Exception as e:
             print(f"Error loading agent: {str(e)}")
+            print(f"Error type: {type(e)}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
             print_h_bar()
 
     def do_start(self, arg):

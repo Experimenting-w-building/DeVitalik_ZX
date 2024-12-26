@@ -136,27 +136,21 @@ class OpenAIConnection(BaseConnection):
                 logger.debug(f"Configuration check failed: {e}")
             return False
 
-    def generate_text(self, prompt: str, system_prompt: str, model: str = None, **kwargs) -> str:
-        """Generate text using OpenAI models"""
+    def generate_text(self, prompt: str, system_prompt: str = None) -> str:
+        """Generate text using the configured model"""
         try:
-            client = self._get_client()
-            
-            # Use configured model if none provided
-            if not model:
-                model = self.config["model"]
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
 
-            completion = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt},
-                ],
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages
             )
-
-            return completion.choices[0].message.content
-            
+            return response.choices[0].message.content.strip()
         except Exception as e:
-            raise OpenAIAPIError(f"Text generation failed: {e}")
+            raise Exception(f"Failed to generate text: {str(e)}")
 
     def check_model(self, model, **kwargs):
         try:
@@ -197,14 +191,16 @@ class OpenAIConnection(BaseConnection):
             raise OpenAIAPIError(f"Listing models failed: {e}")
     
     def perform_action(self, action_name: str, params: List[Any] = None) -> Any:
-        """Execute a Twitter action with validation"""
         if action_name not in self.actions:
             raise ValueError(f"Unknown action: {action_name}")
 
         if action_name == "generate-text":
             if not params or len(params) < 1:
                 raise ValueError("Text prompt is required")
-            return self.generate_text(params[0], params[1] if len(params) > 1 else None)
+            prompt = params[0]
+            system_prompt = params[1] if len(params) > 1 else None
+            return self.generate_text(prompt, system_prompt)
+            
         elif action_name == "generate-image":
             if not params or len(params) < 1:
                 raise ValueError("Image prompt is required")

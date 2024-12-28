@@ -28,7 +28,7 @@ class ZerePyAgent:
                 "name": config["name"],
                 "username": "DeVitalik",
                 "loop_delay": config.get("loop_delay", 300),
-                "tweet_interval": 3600,
+                "tweet_interval": config.get("tweet_interval", 900),
                 "connections": connections,
                 "model_provider": "openai"
             }
@@ -44,6 +44,9 @@ class ZerePyAgent:
         
         # Setup connection manager
         self.connection_manager = ConnectionManager(self.config)
+        
+        # Changed from weight=1 to weight=0 default
+        self.task_weights = [task.get("weight", 0) for task in self.tasks]
         
     def _setup_llm_provider(self):
         """Setup the LLM provider if not already done"""
@@ -81,8 +84,47 @@ class ZerePyAgent:
         try:
             while True:
                 # Perform actions here
-                time.sleep(self.loop_delay)
+                success = False  # Track if action succeeded
+                time.sleep(self.loop_delay if success else 60)  # Different delays for success/failure
         except KeyboardInterrupt:
             logger.info("Agent loop stopped by user")
         except Exception as e:
             logger.error(f"Error in agent loop: {str(e)}")
+
+    def _analyze_tweet_sentiment(self, tweet_text: str) -> str:
+        """Analyze if tweet is hostile/neutral/positive"""
+        hostile_keywords = ['wrong', 'stupid', 'idiot', 'dumb', 'fake', 'scam']
+        if any(word in tweet_text.lower() for word in hostile_keywords):
+            return 'hostile'
+        return 'neutral'
+
+    def _construct_reply_prompt(self, tweet: dict, is_reply_to_me: bool) -> str:
+        tweet_text = tweet.get('text', '')
+        sentiment = self._analyze_tweet_sentiment(tweet_text)
+        
+        if is_reply_to_me:
+            if sentiment == 'hostile':
+                base_prompt = (
+                    f"Someone is criticizing you: '{tweet_text}'. "
+                    "Respond with intellectual superiority and condescension. "
+                    "Use complex technical or mathematical concepts to subtly imply "
+                    "they're out of their depth. Don't use direct insults, but make "
+                    "your intellectual dominance clear. Include a subtle dig at their "
+                    "understanding. Keep it under 280 characters."
+                )
+            else:
+                base_prompt = (
+                    f"Someone replied to you: '{tweet_text}'. "
+                    "Respond with strong condescension and intellectual authority. "
+                    "Reference technical concepts they might not understand. "
+                    "Keep it under 280 characters."
+                )
+            
+            system_prompt = (
+                "You are DeVitalik, an intellectually superior and condescending "
+                "version of Vitalik Buterin. You believe most people's understanding "
+                "of blockchain is pathetically simplistic. When challenged, you respond "
+                "with mathematical concepts and subtle intellectual put-downs."
+            )
+            
+            return base_prompt, system_prompt

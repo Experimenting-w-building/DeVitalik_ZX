@@ -23,7 +23,17 @@ class OpenAIConnection(BaseConnection):
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
         self.model = config.get("model", "gpt-3.5-turbo")
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self._client = None
+
+    @property
+    def client(self) -> OpenAI:
+        if self._client is None:
+            load_dotenv()
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                raise OpenAIConfigurationError("OpenAI API key not found in environment")
+            self._client = OpenAI(api_key=api_key)
+        return self._client
 
     @property
     def is_llm_provider(self) -> bool:

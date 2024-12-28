@@ -6,7 +6,6 @@ from dotenv import set_key, load_dotenv
 import tweepy
 from src.connections.base_connection import BaseConnection, Action, ActionParameter
 from src.helpers import print_h_bar
-import requests
 
 logger = logging.getLogger("connections.twitter_connection")
 
@@ -26,19 +25,6 @@ class TwitterConnection(BaseConnection):
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
         self._oauth_session = None
-        self.timeline_read_count = config.get("timeline_read_count", 10)
-        self.tweet_interval = config.get("tweet_interval", 900)
-        
-        # Set up Twitter client
-        auth = tweepy.OAuthHandler(
-            os.getenv("TWITTER_CONSUMER_KEY"),
-            os.getenv("TWITTER_CONSUMER_SECRET")
-        )
-        auth.set_access_token(
-            os.getenv("TWITTER_ACCESS_TOKEN"),
-            os.getenv("TWITTER_ACCESS_TOKEN_SECRET")
-        )
-        self.client = tweepy.API(auth)
 
     @property
     def is_llm_provider(self) -> bool:
@@ -106,14 +92,6 @@ class TwitterConnection(BaseConnection):
                     ActionParameter("tweet_id", True, str, "ID of the tweet to query for replies")
                 ],
                 description="Fetch tweet replies"
-            ),
-            "post-tweet-with-media": Action(
-                name="post-tweet-with-media",
-                parameters=[
-                    ActionParameter("text", True, str, "Text content of the tweet"),
-                    ActionParameter("media_url", True, str, "URL of the media to attach")
-                ],
-                description="Post a new tweet with media"
             )
         }
 
@@ -369,90 +347,185 @@ class TwitterConnection(BaseConnection):
             return False
 
     def perform_action(self, action_name: str, params: List[Any] = None) -> Any:
-        """Perform a Twitter action"""
+        """Execute a Twitter action with validation"""
         if action_name not in self.actions:
-            raise ValueError(f"Unknown action: {action_name}")
+            raise KeyError(f"Unknown action: {action_name}")
 
         try:
             if action_name == "read-timeline":
-                count = params[0] if params and len(params) > 0 else self.timeline_read_count
-                return self.read_timeline(count=count)
-                
+                count = params[0] if params and len(params) > 0 else None
+                return self.read_timeline(count)
             elif action_name == "post-tweet":
                 if not params or len(params) < 1:
                     raise ValueError("Tweet text is required")
+                self._validate_tweet_text(params[0])
                 return self.post_tweet(message=params[0])
-                
-            elif action_name == "reply-to-tweet":
-                if not params or len(params) < 2:
-                    raise ValueError("Tweet ID and reply text are required")
-                return self.post_tweet(
-                    message=params[1],
-                    reply_to=params[0]
-                )
-                
-            elif action_name == "post-tweet-with-media":
-                if not params or len(params) < 2:
-                    raise ValueError("Tweet text and media URL are required")
-                return self.post_tweet_with_media(text=params[0], media_url=params[1])
-                
             elif action_name == "like-tweet":
                 if not params or len(params) < 1:
                     raise ValueError("Tweet ID is required")
                 return self.like_tweet(tweet_id=params[0])
-                
+            elif action_name == "reply-to-tweet":
+                if not params or len(params) < 2:
+                    raise ValueError("Tweet ID and reply text are required")
+                tweet_id, reply_text = params
+                self._validate_tweet_text(reply_text, "Reply")
+                return self.reply_to_tweet(tweet_id=tweet_id, message=reply_text)
+            elif action_name == "get-tweet-replies":
+                if not params or len(params) < 1:
+                    raise ValueError("Tweet ID is required")
+                return self.get_tweet_replies(tweet_id=params[0])
             else:
-                raise ValueError(f"Action not implemented: {action_name}")
+                raise ValueError(f"Unknown action: {action_name}")
                 
         except Exception as e:
-            logger.error(f"Error in Twitter action {action_name}: {str(e)}")
-            raise
+            logger.error(f"Error in {action_name}: {e}")
+            raise Exception(f"Error in {action_name}: {str(e)}")
 
-    def read_timeline(self, count: int = None, **kwargs) -> list:
-        """Read tweets from the user's timeline"""
+    def read_timeline(self, count: int = None) -> list:
+        """Read tweets from the user's timeline and replies to our tweets"""
         if count is None:
-            count = self.config["timeline_read_count"]
+            count = self.config.get("timeline_read_count", 50)
             
-        logger.debug(f"Reading timeline, count: {count}")
+        logger.debug(f"Reading timeline and replies, count: {count}")
         credentials = self._get_credentials()
 
-        params = {
-            "tweet.fields": "created_at,author_id,attachments",
-            "expansions": "author_id",
+        # First, get our recent tweets
+        our_tweets_params = {
+            "tweet.fields": "id,created_at,author_id,conversation_id",
+            "max_results": self.config.get("own_tweet_replies_count", 10)  # Get our last N tweets
+        }
+
+        our_tweets_response = self._make_request(
+            'get',
+            f"users/{credentials['TWITTER_USER_ID']}/tweets",
+            params=our_tweets_params
+        )
+
+        all_tweets = []
+        seen_conversations = set()
+        
+        # If we have tweets, get their replies
+        if our_tweets_response.get("data"):
+            for tweet in our_tweets_response["data"]:
+                # Skip if we've already processed this conversation
+                if tweet.get('conversation_id') in seen_conversations:
+                    continue
+                seen_conversations.add(tweet.get('conversation_id'))
+                
+                # Get replies to this tweet
+                replies_params = {
+                    "query": f"conversation_id:{tweet['id']} is:reply",
+                    "tweet.fields": "created_at,author_id,in_reply_to_user_id,referenced_tweets,conversation_id",
+                    "expansions": "author_id,referenced_tweets.id",
+                    "user.fields": "name,username",
+                    "max_results": 100  # Get up to 100 replies per tweet
+                }
+                
+                try:
+                    replies_response = self._make_request(
+                        'get',
+                        'tweets/search/recent',
+                        params=replies_params
+                    )
+                    
+                    if replies_response.get("data"):
+                        # Add user info to replies
+                        user_info = replies_response.get("includes", {}).get("users", [])
+                        user_dict = {
+                            user['id']: {
+                                'name': user['name'],
+                                'username': user['username']
+                            }
+                            for user in user_info
+                        }
+                        
+                        # Sort replies by creation time
+                        replies = replies_response["data"]
+                        replies.sort(key=lambda x: x['created_at'])
+                        
+                        for reply in replies:
+                            author_id = reply['author_id']
+                            # Skip our own replies
+                            if author_id == credentials['TWITTER_USER_ID']:
+                                continue
+                                
+                            author_info = user_dict.get(author_id, {
+                                'name': "Unknown",
+                                'username': "Unknown"
+                            })
+                            reply.update({
+                                'author_name': author_info['name'],
+                                'author_username': author_info['username'],
+                                'conversation_id': tweet['conversation_id']
+                            })
+                            all_tweets.append(reply)
+                            
+                except Exception as e:
+                    logger.error(f"Error fetching replies for tweet {tweet['id']}: {e}")
+
+        # Also get general timeline tweets
+        timeline_params = {
+            "tweet.fields": "created_at,author_id,in_reply_to_user_id,conversation_id",
+            "expansions": "author_id,referenced_tweets.id",
             "user.fields": "name,username",
             "max_results": count
         }
 
-        response = self._make_request(
-            'get',
-            f"users/{credentials['TWITTER_USER_ID']}/timelines/reverse_chronological",
-            params=params
-        )
+        try:
+            timeline_response = self._make_request(
+                'get',
+                f"users/{credentials['TWITTER_USER_ID']}/timelines/reverse_chronological",
+                params=timeline_params
+            )
 
-        tweets = response.get("data", [])
-        user_info = response.get("includes", {}).get("users", [])
+            if timeline_response.get("data"):
+                # Add user info to timeline tweets
+                user_info = timeline_response.get("includes", {}).get("users", [])
+                user_dict = {
+                    user['id']: {
+                        'name': user['name'],
+                        'username': user['username']
+                    }
+                    for user in user_info
+                }
 
-        user_dict = {
-            user['id']: {
-                'name': user['name'],
-                'username': user['username']
-            }
-            for user in user_info
-        }
+                for tweet in timeline_response["data"]:
+                    # Skip if we've already processed this conversation
+                    if tweet.get('conversation_id') in seen_conversations:
+                        continue
+                    seen_conversations.add(tweet.get('conversation_id'))
+                    
+                    author_id = tweet['author_id']
+                    # Skip our own tweets
+                    if author_id == credentials['TWITTER_USER_ID']:
+                        continue
+                        
+                    author_info = user_dict.get(author_id, {
+                        'name': "Unknown",
+                        'username': "Unknown"
+                    })
+                    tweet.update({
+                        'author_name': author_info['name'],
+                        'author_username': author_info['username']
+                    })
+                    all_tweets.append(tweet)
+                    
+        except Exception as e:
+            logger.error(f"Error fetching timeline: {e}")
 
-        for tweet in tweets:
-            author_id = tweet['author_id']
-            author_info = user_dict.get(author_id, {
-                'name': "Unknown",
-                'username': "Unknown"
-            })
-            tweet.update({
-                'author_name': author_info['name'],
-                'author_username': author_info['username']
-            })
+        # Sort all tweets by creation time (oldest first)
+        all_tweets.sort(key=lambda x: x['created_at'])
+        
+        # Remove duplicates while preserving order
+        seen_ids = set()
+        unique_tweets = []
+        for tweet in all_tweets:
+            if tweet['id'] not in seen_ids:
+                seen_ids.add(tweet['id'])
+                unique_tweets.append(tweet)
 
-        logger.debug(f"Retrieved {len(tweets)} tweets")
-        return tweets
+        logger.debug(f"Retrieved {len(unique_tweets)} unique tweets")
+        return unique_tweets
 
     def get_latest_tweets(self,
                           username: str,
@@ -531,36 +604,3 @@ class TwitterConnection(BaseConnection):
         
         logger.info(f"Retrieved {len(replies)} replies")
         return replies
-
-    def download_media(self, url: str) -> str:
-        """Download media from URL to temp file"""
-        response = requests.get(url)
-        if response.status_code != 200:
-            raise Exception(f"Failed to download media: {response.status_code}")
-        
-        # Save to temp file
-        temp_path = f"/tmp/media_{os.urandom(8).hex()}.png"
-        with open(temp_path, "wb") as f:
-            f.write(response.content)
-        return temp_path
-
-    def post_tweet_with_media(self, text: str, media_url: str) -> None:
-        """Post a tweet with media"""
-        try:
-            # Download media
-            media_path = self.download_media(media_url)
-            
-            # Upload media
-            media = self.client.media_upload(media_path)
-            
-            # Post tweet with media
-            self.client.update_status(
-                status=text,
-                media_ids=[media.media_id]
-            )
-            
-            # Clean up temp file
-            os.remove(media_path)
-            
-        except Exception as e:
-            raise Exception(f"Failed to post tweet with media: {str(e)}")

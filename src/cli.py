@@ -319,40 +319,15 @@ class ZerePyCLI(Cmd):
 
     def _load_agent_from_file(self, agent_name):
         try: 
-            # Load the config file
-            with open(f"agents/{agent_name}.json", 'r') as f:
-                config = json.load(f)
-            
-            # Extract connections from config
-            connections = []
-            for conn in config.get("config", []):
-                connections.append({
-                    "type": conn["name"],
-                    "config": conn
-                })
-                
-            # Build agent config
-            agent_config = {
-                "name": config["name"],
-                "username": "DeVitalik",
-                "loop_delay": config.get("loop_delay", 300),
-                "tweet_interval": 3600,
-                "connections": connections,
-                "model_provider": "openai"
-            }
-            
-            # Create agent with processed config
-            self.agent = ZerePyAgent(agent_config)
+            self.agent = ZerePyAgent(agent_name)
             logger.info(f"\n✅ Successfully loaded agent: {self.agent.name}")
             
         except FileNotFoundError:
             logger.error(f"Agent file not found: {agent_name}")
             logger.info("Use 'list-agents' to see available agents.")
-        except KeyError as e:
-            logger.error(f"Invalid agent file: {e}")
         except Exception as e:
             logger.error(f"Error loading agent: {e}")
-
+            
     def _load_default_agent(self) -> None:
         """Load users default agent"""
         agent_general_config_path = Path("agents") / "general.json"
@@ -413,7 +388,7 @@ class ZerePyCLI(Cmd):
             return
 
         try:
-            self.agent.run()
+            self.agent.loop()
         except KeyboardInterrupt:
             logger.info("\n🛑 Agent loop stopped by user.")
         except Exception as e:
@@ -546,53 +521,16 @@ class ZerePyCLI(Cmd):
     def do_load_agent(self, agent_name):
         """Load an agent configuration"""
         try:
-            print(f"DEBUG: Agent name received: '{agent_name}'")  # Debug the input
-            
             if not agent_name:
                 print("Error: Please provide an agent name")
                 return
                 
             agent_name = agent_name.strip()  # Remove any whitespace
-            print(f"DEBUG: Loading config from agents/{agent_name}.json")
-            
-            # Load and parse JSON
-            with open(f"agents/{agent_name}.json", 'r', encoding='utf-8') as f:
-                config = json.load(f)
-                
-            print(f"DEBUG: Loaded config type: {type(config)}")
-            print(f"DEBUG: Config keys: {config.keys() if isinstance(config, dict) else 'NOT A DICT'}")
-            
-            # Extract connections from config
-            connections = []
-            for conn in config["config"]:
-                connections.append({
-                    "type": conn["name"],
-                    "config": conn
-                })
-                
-            # Build agent config
-            agent_config = {
-                "name": config["name"],
-                "username": "DeVitalik",
-                "loop_delay": config["loop_delay"],
-                "tweet_interval": 3600,
-                "connections": connections,
-                "model_provider": "openai"
-            }
-            
-            print(f"DEBUG: Created agent config")
-            
-            # Create agent
-            self.agent = ZerePyAgent(agent_config)
+            self._load_agent_from_file(agent_name)
             self.prompt = f"ZerePy-CLI ({agent_name}) > "
-            print(f"✅ Successfully loaded agent: {agent_name}")
-            print_h_bar()
             
         except Exception as e:
             print(f"Error loading agent: {str(e)}")
-            print(f"Error type: {type(e)}")
-            import traceback
-            print(f"Traceback: {traceback.format_exc()}")
             print_h_bar()
 
     def do_start(self, arg):
@@ -619,7 +557,7 @@ class ZerePyCLI(Cmd):
             return
             
         try:
-            self.agent.run()
+            self.agent.loop()
         except Exception as e:
             print(f"Error in agent loop: {str(e)}")
             print_h_bar()

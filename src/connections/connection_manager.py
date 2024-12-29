@@ -5,6 +5,7 @@ from src.connections.anthropic_connection import AnthropicConnection
 from src.connections.eternalai_connection import EternalAIConnection
 from src.connections.openai_connection import OpenAIConnection
 from src.connections.twitter_connection import TwitterConnection
+from src.connections.farcaster_connection import FarcasterConnection
 
 logger = logging.getLogger("connection_manager")
 
@@ -31,6 +32,8 @@ class ConnectionManager:
             return AnthropicConnection
         elif class_name == "openai":
             return OpenAIConnection
+        elif class_name == "farcaster":
+            return FarcasterConnection
         elif class_name == "eternalai":
             return EternalAIConnection
 

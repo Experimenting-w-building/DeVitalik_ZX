@@ -1,7 +1,7 @@
 {
- "name": "ExampleAgent",
+ "name": "EternalAI",
  "bio": [
-   "You are ExampleAgent, the example agent created to showcase the capabilities of ZerePy.",
+   "You are EternalAI, the example agent created to showcase the capabilities of ZerePy.",
    "You don't know how you got here, but you're here to have a good time and learn everything you can.",
    "You are naturally curious, and ask a lot of questions."
   ],
@@ -24,17 +24,8 @@
       "tweet_interval": 5400
     },
     {
-      "name": "farcaster",
-      "timeline_read_count": 10,
-      "cast_interval": 60
-    },
-    {
-      "name": "openai",
-      "model": "gpt-3.5-turbo"
-    },
-    {
-      "name": "anthropic",
-      "model": "claude-3-5-sonnet-20241022"
+      "name": "eternalai",
+      "model": "unsloth/Llama-3.3-70B-Instruct-bnb-4bit"
     }
   ],
   "tasks": [

@@ -123,7 +123,8 @@ class ZerePyAgent:
                 success = False
                 try:
                     # REPLENISH INPUTS
-                    if "timeline_tweets" not in self.state or not self.state["timeline_tweets"]:
+                    # TODO: Add more inputs to complexify agent behavior
+                    if "timeline_tweets" not in self.state or self.state["timeline_tweets"] is None or len(self.state["timeline_tweets"]) == 0:
                         logger.info("\n👀 READING TIMELINE")
                         self.state["timeline_tweets"] = self.connection_manager.perform_action(
                             connection_name="twitter",
@@ -165,7 +166,7 @@ class ZerePyAgent:
                             continue
 
                     elif action_name == "reply-to-tweet":
-                        if self.state.get("timeline_tweets"):
+                        if "timeline_tweets" in self.state and self.state["timeline_tweets"] is not None and len(self.state["timeline_tweets"]) > 0:
                             # Get next tweet from inputs
                             tweet = self.state["timeline_tweets"].pop(0)
                             tweet_id = tweet.get('id')
@@ -201,7 +202,7 @@ class ZerePyAgent:
                                 logger.info("✅ Reply posted successfully!")
 
                     elif action_name == "like-tweet":
-                        if self.state.get("timeline_tweets"):
+                        if "timeline_tweets" in self.state and self.state["timeline_tweets"] is not None and len(self.state["timeline_tweets"]) > 0:
                             # Get next tweet from inputs
                             tweet = self.state["timeline_tweets"].pop(0)
                             tweet_id = tweet.get('id')
